@@ -17,6 +17,8 @@ interface Question {
   options: string[];
   correct_index: number;
   explanation: string;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  level: 'Foundation' | 'Intermediate' | 'Advanced';
 }
 
 // Validate data received from Supabase before the UI uses it.
@@ -59,6 +61,12 @@ function parseQuestions(data: unknown): Question[] {
     if (value.explanation !== null && value.explanation !== undefined && typeof value.explanation !== 'string') {
       throw new Error(`Question row ${index + 1} has an invalid explanation.`);
     }
+    if (!['Easy', 'Medium', 'Hard'].includes(String(value.difficulty))) {
+      throw new Error(`Question row ${index + 1} has an invalid difficulty.`);
+    }
+    if (!['Foundation', 'Intermediate', 'Advanced'].includes(String(value.level))) {
+      throw new Error(`Question row ${index + 1} has an invalid level.`);
+    }
 
     return {
       id: value.id,
@@ -67,6 +75,8 @@ function parseQuestions(data: unknown): Question[] {
       options: options as string[],
       correct_index: value.correct_index as number,
       explanation: typeof value.explanation === 'string' ? value.explanation : '',
+      difficulty: value.difficulty as Question['difficulty'],
+      level: value.level as Question['level'],
     };
   });
 }
@@ -96,7 +106,7 @@ export default function App() {
     try {
       const { data, error } = await supabase
         .from('questions')
-        .select('id, track, question_text, options, correct_index, explanation, created_at')
+        .select('id, track, question_text, options, correct_index, explanation, difficulty, level, created_at')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -279,6 +289,8 @@ export default function App() {
           <View style={styles.card}>
             <View style={styles.badgeRow}>
               <Text style={styles.badge}>{currentQ.track}</Text>
+              <Text style={styles.metaBadge}>{currentQ.difficulty}</Text>
+              <Text style={styles.metaBadge}>{currentQ.level}</Text>
               {isTimedMode ? (
                 <Text style={[styles.timerText, timeLeft <= 10 && styles.timerWarning]}>
                   ⏱ {timeLeft}s
@@ -399,6 +411,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 12,
   },
+  metaBadge: { backgroundColor: '#F1F5F9', color: '#475569', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, fontWeight: '600', fontSize: 11 },
   timerText: { fontSize: 14, fontWeight: '700', color: '#0F172A' },
   timerWarning: { color: '#EF4444' },
   untimedBadge: { fontSize: 12, fontWeight: '600', color: '#0284C7' },
