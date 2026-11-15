@@ -19,6 +19,58 @@ interface Question {
   explanation: string;
 }
 
+// Validate data received from Supabase before the UI uses it.
+function parseQuestions(data: unknown): Question[] {
+  if (!Array.isArray(data)) {
+    throw new Error('The questions response was not a list. Please check the database response.');
+  }
+
+  return data.map((row, index) => {
+    if (!row || typeof row !== 'object') {
+      throw new Error(`Question row ${index + 1} is not a valid object.`);
+    }
+
+    const value = row as Record<string, unknown>;
+    const options = value.options;
+
+    if (typeof value.id !== 'string' || !value.id.trim()) {
+      throw new Error(`Question row ${index + 1} has an invalid ID.`);
+    }
+    if (typeof value.track !== 'string' || !value.track.trim()) {
+      throw new Error(`Question row ${index + 1} has an invalid track.`);
+    }
+    if (typeof value.question_text !== 'string' || !value.question_text.trim()) {
+      throw new Error(`Question row ${index + 1} has empty question text.`);
+    }
+    if (
+      !Array.isArray(options) ||
+      options.length < 2 ||
+      !options.every((option) => typeof option === 'string' && option.trim().length > 0)
+    ) {
+      throw new Error(`Question row ${index + 1} must contain at least two non-empty options.`);
+    }
+    if (
+      !Number.isInteger(value.correct_index) ||
+      (value.correct_index as number) < 0 ||
+      (value.correct_index as number) >= options.length
+    ) {
+      throw new Error(`Question row ${index + 1} has an invalid correct answer index.`);
+    }
+    if (value.explanation !== null && value.explanation !== undefined && typeof value.explanation !== 'string') {
+      throw new Error(`Question row ${index + 1} has an invalid explanation.`);
+    }
+
+    return {
+      id: value.id,
+      track: value.track,
+      question_text: value.question_text,
+      options: options as string[],
+      correct_index: value.correct_index as number,
+      explanation: typeof value.explanation === 'string' ? value.explanation : '',
+    };
+  });
+}
+
 const TIME_LIMIT = 30; // seconds per question in Timed mode
 
 export default function App() {
@@ -30,6 +82,7 @@ export default function App() {
   const [showExplanation, setShowExplanation] = useState(false);
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
 
   useEffect(() => {
@@ -38,17 +91,30 @@ export default function App() {
 
   async function loadQuestions() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('questions')
-      .select('*')
-      .order('created_at', { ascending: false });
+    setLoadError(null);
 
-    if (error) {
-      console.error('Supabase error:', error.message);
-    } else if (data) {
-      setAllQuestions(data);
+    try {
+      const { data, error } = await supabase
+        .from('questions')
+        .select('id, track, question_text, options, correct_index, explanation, created_at')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      setAllQuestions(parseQuestions(data ?? []));
+    } catch (error) {
+      console.error('Unable to load interview questions:', error);
+      setAllQuestions([]);
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : 'An unexpected error occurred while loading questions.'
+      );
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   // Derive unique categories dynamically from Supabase rows
@@ -60,23 +126,32 @@ export default function App() {
       ? allQuestions
       : allQuestions.filter((q) => q.track === selectedTrack);
 
-  // Countdown timer logic (only runs when isTimedMode is true)
+  // Keep one interval per active question; state updates cannot drift below zero.
   useEffect(() => {
-    if (!isTimedMode) return;
-    if (loading || filteredQuestions.length === 0 || currentIndex >= filteredQuestions.length) return;
-    if (selectedOption !== null || showExplanation) return;
-
-    if (timeLeft === 0) {
-      setShowExplanation(true); // Time's up: reveal answer automatically
-      return;
-    }
+    if (!isTimedMode || loading || filteredQuestions.length === 0) return;
+    if (currentIndex >= filteredQuestions.length || selectedOption !== null || showExplanation) return;
 
     const timer = setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
+      setTimeLeft((previous) => Math.max(0, previous - 1));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isTimedMode, timeLeft, selectedOption, showExplanation, currentIndex, filteredQuestions.length, loading]);
+  }, [isTimedMode, loading, filteredQuestions.length, currentIndex, selectedOption, showExplanation]);
+
+  // Reveal the answer once the countdown reaches zero.
+  useEffect(() => {
+    if (
+      isTimedMode &&
+      !loading &&
+      filteredQuestions.length > 0 &&
+      currentIndex < filteredQuestions.length &&
+      timeLeft === 0 &&
+      selectedOption === null &&
+      !showExplanation
+    ) {
+      setShowExplanation(true);
+    }
+  }, [isTimedMode, loading, filteredQuestions.length, currentIndex, timeLeft, selectedOption, showExplanation]);
 
   const handleTrackChange = (track: string) => {
     setSelectedTrack(track);
@@ -93,7 +168,7 @@ export default function App() {
   };
 
   const handleSelect = (index: number) => {
-    if (selectedOption !== null || showExplanation) return;
+    if (selectedOption !== null || showExplanation || (isTimedMode && timeLeft === 0)) return;
     setSelectedOption(index);
     setShowExplanation(true);
     if (index === filteredQuestions[currentIndex].correct_index) {
@@ -125,13 +200,25 @@ export default function App() {
     );
   }
 
+  if (loadError) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.heading}>Unable to Load Questions</Text>
+        <Text style={styles.body}>{loadError}</Text>
+        <TouchableOpacity style={styles.btnPrimary} onPress={loadQuestions}>
+          <Text style={styles.btnText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   if (allQuestions.length === 0) {
     return (
       <View style={styles.center}>
-        <Text style={styles.heading}>No Questions Found</Text>
-        <Text style={styles.body}>Check your internet connection or Supabase database.</Text>
+        <Text style={styles.heading}>No Questions Available</Text>
+        <Text style={styles.body}>The questions table is currently empty.</Text>
         <TouchableOpacity style={styles.btnPrimary} onPress={loadQuestions}>
-          <Text style={styles.btnText}>Retry</Text>
+          <Text style={styles.btnText}>Refresh</Text>
         </TouchableOpacity>
       </View>
     );
@@ -225,7 +312,7 @@ export default function App() {
                   key={idx}
                   style={optionStyle}
                   onPress={() => handleSelect(idx)}
-                  disabled={showExplanation}
+                  disabled={showExplanation || (isTimedMode && timeLeft === 0)}
                 >
                   <Text style={styles.optionLabel}>
                     {String.fromCharCode(65 + idx)}. {option}
