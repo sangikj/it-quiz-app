@@ -128,7 +128,7 @@ export default function App() {
 
   // Keep one interval per active question; state updates cannot drift below zero.
   useEffect(() => {
-    if (!isTimedMode || loading || filteredQuestions.length === 0) return;
+    if (!isTimedMode || loading || filteredQuestions.length === 0 || timeLeft === 0) return;
     if (currentIndex >= filteredQuestions.length || selectedOption !== null || showExplanation) return;
 
     const timer = setInterval(() => {
@@ -136,7 +136,7 @@ export default function App() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isTimedMode, loading, filteredQuestions.length, currentIndex, selectedOption, showExplanation]);
+  }, [isTimedMode, loading, filteredQuestions.length, currentIndex, selectedOption, showExplanation, timeLeft]);
 
   // Reveal the answer once the countdown reaches zero.
   useEffect(() => {
