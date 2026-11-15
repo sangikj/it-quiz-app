@@ -86,6 +86,8 @@ const TIME_LIMIT = 30; // seconds per question in Timed mode
 export default function App() {
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [selectedTrack, setSelectedTrack] = useState<string>('All');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('All');
+  const [selectedLevel, setSelectedLevel] = useState<string>('All');
   const [isTimedMode, setIsTimedMode] = useState<boolean>(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
@@ -131,10 +133,11 @@ export default function App() {
   const tracks = ['All', ...Array.from(new Set(allQuestions.map((q) => q.track).filter(Boolean)))];
 
   // Filter questions by active category
-  const filteredQuestions =
-    selectedTrack === 'All'
-      ? allQuestions
-      : allQuestions.filter((q) => q.track === selectedTrack);
+  const filteredQuestions = allQuestions.filter((q) =>
+    (selectedTrack === 'All' || q.track === selectedTrack) &&
+    (selectedDifficulty === 'All' || q.difficulty === selectedDifficulty) &&
+    (selectedLevel === 'All' || q.level === selectedLevel)
+  );
 
   // Keep one interval per active question; state updates cannot drift below zero.
   useEffect(() => {
@@ -170,6 +173,24 @@ export default function App() {
     setShowExplanation(false);
     setScore(0);
     setTimeLeft(TIME_LIMIT);
+  };
+
+  const resetForFilterChange = () => {
+    setCurrentIndex(0);
+    setSelectedOption(null);
+    setShowExplanation(false);
+    setScore(0);
+    setTimeLeft(TIME_LIMIT);
+  };
+
+  const handleDifficultyChange = (difficulty: string) => {
+    setSelectedDifficulty(difficulty);
+    resetForFilterChange();
+  };
+
+  const handleLevelChange = (level: string) => {
+    setSelectedLevel(level);
+    resetForFilterChange();
   };
 
   const toggleTimerMode = () => {
@@ -275,6 +296,31 @@ export default function App() {
           })}
         </ScrollView>
 
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterLabel}>Difficulty</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trackScroll}>
+            {['All', 'Easy', 'Medium', 'Hard'].map((difficulty) => {
+              const active = selectedDifficulty === difficulty;
+              return (
+                <TouchableOpacity key={difficulty} style={[styles.trackPill, active && styles.trackPillActive]} onPress={() => handleDifficultyChange(difficulty)}>
+                  <Text style={[styles.trackPillText, active && styles.trackPillTextActive]}>{difficulty}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+          <Text style={styles.filterLabel}>Level</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trackScroll}>
+            {['All', 'Foundation', 'Intermediate', 'Advanced'].map((level) => {
+              const active = selectedLevel === level;
+              return (
+                <TouchableOpacity key={level} style={[styles.trackPill, active && styles.trackPillActive]} onPress={() => handleLevelChange(level)}>
+                  <Text style={[styles.trackPillText, active && styles.trackPillTextActive]}>{level}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
         {isCompleted ? (
           <View style={styles.card}>
             <Text style={styles.heading}>Track Completed! 🎉</Text>
@@ -374,6 +420,8 @@ const styles = StyleSheet.create({
   modeTimedText: { color: '#B45309' },
   modeUntimedText: { color: '#0369A1' },
   trackScroll: { paddingVertical: 10, gap: 8, maxWidth: 540 },
+  filterGroup: { width: '100%', maxWidth: 540, marginBottom: 8 },
+  filterLabel: { fontSize: 12, fontWeight: '700', color: '#64748B', marginTop: 4 },
   trackPill: {
     paddingHorizontal: 14,
     paddingVertical: 8,
