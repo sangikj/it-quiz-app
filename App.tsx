@@ -487,6 +487,7 @@ export default function App() {
         {/* Category Filter Bar */}
         <ScrollView
           horizontal
+          style={styles.horizontalFilter}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.trackScroll}
         >
@@ -508,12 +509,12 @@ export default function App() {
 
         <View style={styles.filterGroup}>
           <Text style={styles.filterLabel}>Difficulty</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trackScroll}>
+          <ScrollView horizontal style={styles.horizontalFilter} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trackScroll}>
             {['All', 'Easy', 'Medium', 'Hard'].map((difficulty) => {
               const active = selectedDifficulty === difficulty;
               return (
                 <TouchableOpacity key={difficulty} style={[styles.trackPill, active && styles.trackPillActive]} onPress={() => handleDifficultyChange(difficulty)}>
-                  <Text style={[styles.trackPillText, active && styles.trackPillTextActive]}>{difficulty}</Text>
+                  <Text numberOfLines={1} style={[styles.trackPillText, active && styles.trackPillTextActive]}>{difficulty}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -524,14 +525,14 @@ export default function App() {
               const active = selectedLevel === level;
               return (
                 <TouchableOpacity key={level} style={[styles.trackPill, active && styles.trackPillActive]} onPress={() => handleLevelChange(level)}>
-                  <Text style={[styles.trackPillText, active && styles.trackPillTextActive]}>{level}</Text>
+                  <Text numberOfLines={1} style={[styles.trackPillText, active && styles.trackPillTextActive]}>{level}</Text>
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
         </View>
 
-        {session ? <TouchableOpacity style={styles.endQuizButton} onPress={endQuiz}><Text style={styles.endQuizText}>End Quiz</Text></TouchableOpacity> : null}
+        {session && !isCompleted && !quizStatus ? <TouchableOpacity style={styles.endQuizButton} onPress={endQuiz}><Text style={styles.endQuizText}>End Quiz</Text></TouchableOpacity> : null}
         {isCompleted || quizStatus === 'ended' ? (
           <View style={styles.card}>
             <Text style={styles.heading}>{quizStatus === 'ended' ? 'Quiz Ended' : 'Track Completed! 🎉'}</Text>
@@ -649,7 +650,7 @@ const styles = StyleSheet.create({
   modeToggleText: { fontSize: 12, fontWeight: '700' },
   modeTimedText: { color: '#B45309' },
   modeUntimedText: { color: '#0369A1' },
-  trackScroll: { paddingVertical: 10, gap: 8, maxWidth: 540 },
+  horizontalFilter: { width: '100%', maxWidth: 540, flexGrow: 0, height: 56 },\n  trackScroll: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 2, gap: 8 },
   filterGroup: { width: '100%', maxWidth: 540, marginBottom: 8 },
   filterLabel: { fontSize: 12, fontWeight: '700', color: '#64748B', marginTop: 4 },
   trackPill: {
@@ -660,7 +661,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   trackPillActive: { backgroundColor: '#4F46E5' },
-  trackPillText: { fontSize: 13, fontWeight: '600', color: '#475569' },
+  trackPillText: { fontSize: 13, fontWeight: '600', color: '#475569', flexShrink: 0 },
   trackPillTextActive: { color: '#FFFFFF' },
   card: {
     width: '100%',
