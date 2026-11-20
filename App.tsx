@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Linking } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import {
   View,
   Text,
+  Alert,
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
@@ -12,7 +13,7 @@ import {
 } from 'react-native';
 import { supabase } from './lib/supabase';
 
-interface Question {
+interface AnswerRecord {\n  question_id: string;\n  selected_index: number | null;\n  correct_index: number;\n  is_correct: boolean;\n  time_taken_seconds: number;\n}\n\ninterface Question {
   id: string;
   track: string;
   question_text: string;
@@ -105,7 +106,7 @@ export default function App() {
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
+  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);\n  const [answers, setAnswers] = useState<AnswerRecord[]>([]);\n  const [quizStartedAt, setQuizStartedAt] = useState(Date.now());\n  const [quizStatus, setQuizStatus] = useState<'completed' | 'ended' | null>(null);\n  const [isSavingAttempt, setIsSavingAttempt] = useState(false);\n  const [saveMessage, setSaveMessage] = useState<string | null>(null);\n  const savedAttemptRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -440,7 +441,7 @@ export default function App() {
             <Text style={styles.scoreText}>
               Score ({selectedTrack}): {score} / {filteredQuestions.length}
             </Text>
-            <TouchableOpacity style={styles.btnPrimary} onPress={restartQuiz}>
+            {saveMessage ? <Text style={styles.saveMessage}>{saveMessage}</Text> : null}\n            {isSavingAttempt ? <ActivityIndicator color="#4F46E5" /> : null}\n            <TouchableOpacity style={styles.btnPrimary} onPress={restartQuiz}>
               <Text style={styles.btnText}>Practice Again</Text>
             </TouchableOpacity>
           </View>
@@ -524,7 +525,7 @@ const styles = StyleSheet.create({
   accountInfo: { flex: 1 },
   accountLabel: { fontSize: 11, color: '#64748B', marginTop: 2 },
   signOutButton: { paddingHorizontal: 9, paddingVertical: 7, borderRadius: 8, backgroundColor: '#FEE2E2', marginRight: 8 },
-  signOutText: { color: '#B91C1C', fontSize: 11, fontWeight: '700' },
+  signOutText: { color: '#B91C1C', fontSize: 11, fontWeight: '700' },\n  endQuizButton: { alignSelf: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FEE2E2', borderRadius: 8, marginBottom: 8 },\n  endQuizText: { color: '#B91C1C', fontSize: 12, fontWeight: '700' },\n  saveMessage: { color: '#475569', textAlign: 'center', marginVertical: 10, fontSize: 12 },
   authContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 28, width: '100%' },
   authTitle: { fontSize: 28, fontWeight: '800', color: '#0F172A', marginBottom: 8 },
   authSubtitle: { fontSize: 15, color: '#64748B', marginBottom: 32, textAlign: 'center' },
