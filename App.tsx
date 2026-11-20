@@ -13,7 +13,15 @@ import {
 } from 'react-native';
 import { supabase } from './lib/supabase';
 
-interface AnswerRecord {\n  question_id: string;\n  selected_index: number | null;\n  correct_index: number;\n  is_correct: boolean;\n  time_taken_seconds: number;\n}\n\ninterface Question {
+interface AnswerRecord {
+  question_id: string;
+  selected_index: number | null;
+  correct_index: number;
+  is_correct: boolean;
+  time_taken_seconds: number;
+}
+
+interface Question {
   id: string;
   track: string;
   question_text: string;
@@ -106,7 +114,13 @@ export default function App() {
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);\n  const [answers, setAnswers] = useState<AnswerRecord[]>([]);\n  const [quizStartedAt, setQuizStartedAt] = useState(Date.now());\n  const [quizStatus, setQuizStatus] = useState<'completed' | 'ended' | null>(null);\n  const [isSavingAttempt, setIsSavingAttempt] = useState(false);\n  const [saveMessage, setSaveMessage] = useState<string | null>(null);\n  const savedAttemptRef = useRef(false);
+  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
+  const [answers, setAnswers] = useState<AnswerRecord[]>([]);
+  const [quizStartedAt, setQuizStartedAt] = useState(Date.now());
+  const [quizStatus, setQuizStatus] = useState<'completed' | 'ended' | null>(null);
+  const [isSavingAttempt, setIsSavingAttempt] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const savedAttemptRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
@@ -296,7 +310,64 @@ export default function App() {
     setCurrentIndex((prev) => prev + 1);
   };
 
+  const saveAttempt = async (status: 'completed' | 'ended') => {
+    if (!session?.user?.id || savedAttemptRef.current || isSavingAttempt) return;
+    savedAttemptRef.current = true;
+    setIsSavingAttempt(true);
+    setSaveMessage(null);
+    try {
+      const total = filteredQuestions.length;
+      const { data: attempt, error: attemptError } = await supabase.from('quiz_attempts').insert({
+        user_id: session.user.id,
+        track: selectedTrack === 'All' ? null : selectedTrack,
+        difficulty: selectedDifficulty === 'All' ? null : selectedDifficulty,
+        level: selectedLevel === 'All' ? null : selectedLevel,
+        mode: isTimedMode ? 'timed' : 'practice',
+        total_questions: total,
+        correct_answers: score,
+        score_percentage: total > 0 ? Number(((score / total) * 100).toFixed(2)) : 0,
+        duration_seconds: Math.max(0, Math.floor((Date.now() - quizStartedAt) / 1000)),
+        status,
+      }).select('id').single();
+      if (attemptError) throw attemptError;
+      if (answers.length > 0) {
+        const rows = answers.map((answer) => ({ ...answer, attempt_id: attempt.id, user_id: session.user.id }));
+        const { error: responseError } = await supabase.from('quiz_responses').insert(rows);
+        if (responseError) throw responseError;
+      }
+      setSaveMessage('Quiz result saved to your account.');
+    } catch (error) {
+      savedAttemptRef.current = false;
+      setSaveMessage(error instanceof Error ? 'Could not save quiz: ' + error.message : 'Could not save quiz.');
+    } finally {
+      setIsSavingAttempt(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentIndex >= filteredQuestions.length && filteredQuestions.length > 0 && !quizStatus) {
+      setQuizStatus('completed');
+      if (session?.user?.id) void saveAttempt('completed');
+    }
+  }, [currentIndex, filteredQuestions.length, quizStatus, session?.user?.id]);
+
+  const endQuiz = () => {
+    Alert.alert('End quiz?', 'Your current score will be saved as a partial attempt.', [
+      { text: 'Continue Quiz', style: 'cancel' },
+      { text: 'End Quiz', style: 'destructive', onPress: () => {
+        setQuizStatus('ended');
+        if (session?.user?.id) void saveAttempt('ended');
+        else setSaveMessage('Guest quiz ended. Sign in to save quiz history.');
+      } },
+    ]);
+  };
+
   const restartQuiz = () => {
+    setAnswers([]);
+    setQuizStartedAt(Date.now());
+    setQuizStatus(null);
+    setSaveMessage(null);
+    savedAttemptRef.current = false;
     setSelectedOption(null);
     setShowExplanation(false);
     setTimeLeft(TIME_LIMIT);
@@ -435,13 +506,18 @@ export default function App() {
           </ScrollView>
         </View>
 
-        {isCompleted ? (
+        {session ? <TouchableOpacity style={styles.endQuizButton} onPress={endQuiz}><Text style={styles.endQuizText}>End Quiz</Text></TouchableOpacity> : null}
+        {isCompleted || quizStatus === 'ended' ? (
           <View style={styles.card}>
-            <Text style={styles.heading}>Track Completed! 🎉</Text>
+            <Text style={styles.heading}>{quizStatus === 'ended' ? 'Quiz Ended' : 'Track Completed! 🎉'}</Text>
             <Text style={styles.scoreText}>
               Score ({selectedTrack}): {score} / {filteredQuestions.length}
             </Text>
-            {saveMessage ? <Text style={styles.saveMessage}>{saveMessage}</Text> : null}\n            {isSavingAttempt ? <ActivityIndicator color="#4F46E5" /> : null}\n            <TouchableOpacity style={styles.btnPrimary} onPress={restartQuiz}>
+            {saveMessage ? <Text style={styles.saveMessage}>{saveMessage}</Text> : null}
+            {isSavingAttempt ? <ActivityIndicator color="#4F46E5" /> : null}
+            {saveMessage ? <Text style={styles.saveMessage}>{saveMessage}</Text> : null}
+            {isSavingAttempt ? <ActivityIndicator color="#4F46E5" /> : null}
+            <TouchableOpacity style={styles.btnPrimary} onPress={restartQuiz}>
               <Text style={styles.btnText}>Practice Again</Text>
             </TouchableOpacity>
           </View>
@@ -525,7 +601,13 @@ const styles = StyleSheet.create({
   accountInfo: { flex: 1 },
   accountLabel: { fontSize: 11, color: '#64748B', marginTop: 2 },
   signOutButton: { paddingHorizontal: 9, paddingVertical: 7, borderRadius: 8, backgroundColor: '#FEE2E2', marginRight: 8 },
-  signOutText: { color: '#B91C1C', fontSize: 11, fontWeight: '700' },\n  endQuizButton: { alignSelf: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FEE2E2', borderRadius: 8, marginBottom: 8 },\n  endQuizText: { color: '#B91C1C', fontSize: 12, fontWeight: '700' },\n  saveMessage: { color: '#475569', textAlign: 'center', marginVertical: 10, fontSize: 12 },
+  signOutText: { color: '#B91C1C', fontSize: 11, fontWeight: '700' },
+  endQuizButton: { alignSelf: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FEE2E2', borderRadius: 8, marginBottom: 8 },
+  endQuizText: { color: '#B91C1C', fontSize: 12, fontWeight: '700' },
+  saveMessage: { color: '#475569', textAlign: 'center', marginVertical: 10, fontSize: 12 },
+  endQuizButton: { alignSelf: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FEE2E2', borderRadius: 8, marginBottom: 8 },
+  endQuizText: { color: '#B91C1C', fontSize: 12, fontWeight: '700' },
+  saveMessage: { color: '#475569', textAlign: 'center', marginVertical: 10, fontSize: 12 },
   authContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 28, width: '100%' },
   authTitle: { fontSize: 28, fontWeight: '800', color: '#0F172A', marginBottom: 8 },
   authSubtitle: { fontSize: 15, color: '#64748B', marginBottom: 32, textAlign: 'center' },
