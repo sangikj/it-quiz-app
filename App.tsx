@@ -11,6 +11,7 @@ import {
   SafeAreaView,
   ScrollView,
   StatusBar,
+  TextInput,
 } from 'react-native';
 import { supabase } from './lib/supabase';
 
@@ -121,6 +122,11 @@ export default function App() {
   const [quizStatus, setQuizStatus] = useState<'completed' | 'ended' | null>(null);
   const [isSavingAttempt, setIsSavingAttempt] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [showAccount, setShowAccount] = useState(false);
+  const [displayName, setDisplayName] = useState('');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const savedAttemptRef = useRef(false);
 
   useEffect(() => {
@@ -224,6 +230,25 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  useEffect(() => {
+    let active = true;
+    async function loadProfile() {
+      if (!session?.user?.id) { setDisplayName(''); return; }
+      const { data } = await supabase.from('profiles').select('display_name').eq('id', session.user.id).maybeSingle();
+      if (active) setDisplayName(data?.display_name || session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || '');
+    }
+    void loadProfile();
+    return () => { active = false; };
+  }, [session?.user?.id]);
+
+  async function saveProfile() {
+    if (!session?.user?.id) return;
+    setProfileSaving(true); setProfileMessage(null);
+    const { error } = await supabase.from('profiles').upsert({ id: session.user.id, display_name: displayName.trim(), updated_at: new Date().toISOString() });
+    setProfileSaving(false);
+    setProfileMessage(error ? 'Could not update your profile: ' + error.message : 'Profile updated.');
   }
 
   // Derive unique categories dynamically from Supabase rows
@@ -450,6 +475,33 @@ export default function App() {
     );
   }
 
+  if (showAccount) {
+    const provider = session?.user?.app_metadata?.provider || 'Google';
+    return (
+      <SafeAreaView style={styles.wrapper}>
+        <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" translucent={false} />
+        <ScrollView contentContainerStyle={styles.container}>
+          <View style={styles.accountScreen}>
+            <TouchableOpacity onPress={() => { setShowAccount(false); setProfileMessage(null); }} style={styles.backButton}><Text style={styles.backButtonText}>‹  Back to quiz</Text></TouchableOpacity>
+            <View style={styles.profileAvatar}><Text style={styles.profileAvatarText}>{(displayName || 'G').trim().charAt(0).toUpperCase()}</Text></View>
+            <Text style={styles.accountScreenTitle}>Account details</Text>
+            <View style={[styles.authStatusBadge, { alignSelf: 'center', marginBottom: 18 }]}><View style={[styles.authStatusDot, { backgroundColor: session ? '#16A34A' : '#D97706' }]} /><Text style={styles.authStatusText}>{session ? 'Signed in with Google' : 'Guest mode'}</Text></View>
+            <Text style={styles.filterLabel}>Display name</Text>
+            <TextInput value={displayName} onChangeText={setDisplayName} placeholder="Enter your name" style={styles.profileInput} editable={!!session} />
+            <Text style={styles.filterLabel}>Email address</Text>
+            <Text style={styles.accountDetailValue}>{session?.user?.email || 'Not linked to an account'}</Text>
+            <Text style={styles.filterLabel}>Sign-in method</Text>
+            <Text style={styles.accountDetailValue}>{session ? provider.charAt(0).toUpperCase() + provider.slice(1) : 'Guest (no account)'}</Text>
+            {session?.user?.created_at ? <><Text style={styles.filterLabel}>Account created</Text><Text style={styles.accountDetailValue}>{new Date(session.user.created_at).toLocaleDateString()}</Text></> : null}
+            {profileMessage ? <Text style={styles.saveMessage}>{profileMessage}</Text> : null}
+            {session ? <TouchableOpacity style={styles.btnPrimary} onPress={saveProfile} disabled={profileSaving}>{profileSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.btnText}>Save profile</Text>}</TouchableOpacity> : <TouchableOpacity style={styles.btnPrimary} onPress={() => { setShowAccount(false); void signInWithGoogle(); }}><Text style={styles.btnText}>Sign in with Google to save progress</Text></TouchableOpacity>}
+            {session ? <TouchableOpacity style={styles.signOutButton} onPress={signOut}><Text style={styles.signOutText}>Sign out</Text></TouchableOpacity> : null}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   if (allQuestions.length === 0) {
     return (
       <View style={styles.center}>
@@ -474,9 +526,10 @@ export default function App() {
           <View style={styles.headerIdentity}>
             <View style={styles.accountInfo}>
               <Text style={styles.appTitle}>Sangarya IT Quiz</Text>
-              <Text numberOfLines={1} style={styles.accountLabel}>{session?.user?.email ?? 'Guest mode'}</Text>
+              <Text numberOfLines={1} style={styles.accountLabel}>{session?.user?.email ?? 'Practice without an account'}</Text>
+              <View style={styles.authStatusBadge}><View style={[styles.authStatusDot, { backgroundColor: session ? '#16A34A' : '#D97706' }]} /><Text style={styles.authStatusText}>{session ? 'Signed in with Google' : 'Guest mode'}</Text></View>
             </View>
-            {session ? <TouchableOpacity style={styles.signOutButton} onPress={signOut}><Text style={styles.signOutText}>Sign out</Text></TouchableOpacity> : null}
+            <TouchableOpacity style={styles.accountButton} onPress={() => setShowAccount(true)}><Text style={styles.accountButtonText}>Account</Text></TouchableOpacity>
           </View>
           <TouchableOpacity
             style={[styles.modeToggle, isTimedMode ? styles.modeTimed : styles.modeUntimed]}
@@ -488,54 +541,36 @@ export default function App() {
           </TouchableOpacity>
         </View>
 
-        {/* Category Filter Bar */}
-        <ScrollView
-          horizontal
-          style={styles.horizontalFilter}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.trackScroll}
-        >
-          {tracks.map((track) => {
-            const active = selectedTrack === track;
-            return (
-              <TouchableOpacity
-                key={track}
-                style={[styles.categoryTab, active && styles.categoryTabActive]}
-                onPress={() => handleTrackChange(track)}
-                activeOpacity={0.8}
-              >
-                <Text style={[styles.categoryTabText, active && styles.categoryTabTextActive]}>
-                  {track === 'All' ? '✦  All Topics' : track}
-                </Text>
-                {active ? <View style={styles.categoryActiveMark} /> : null}
+        {/* Compact dropdown filters */}
+        <View style={styles.filterPanel}>
+          {[
+            { key: 'category', label: 'Technology', value: selectedTrack, options: tracks, onChange: handleTrackChange },
+            { key: 'difficulty', label: 'Difficulty', value: selectedDifficulty, options: ['All', 'Easy', 'Medium', 'Hard'], onChange: handleDifficultyChange },
+            { key: 'level', label: 'Level', value: selectedLevel, options: ['All', 'Foundation', 'Intermediate', 'Advanced'], onChange: handleLevelChange },
+          ].map((filter) => (
+            <View key={filter.key} style={styles.dropdownWrap}>
+              <Text style={styles.filterLabel}>{filter.label}</Text>
+              <TouchableOpacity style={styles.dropdownButton} onPress={() => setOpenFilter(openFilter === filter.key ? null : filter.key)} activeOpacity={0.8}>
+                <Text numberOfLines={1} style={styles.dropdownValue}>{filter.value === 'All' ? (filter.key === 'category' ? 'All Topics' : 'All') : filter.value}</Text>
+                <Text style={styles.dropdownChevron}>{openFilter === filter.key ? '▲' : '▼'}</Text>
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Difficulty</Text>
-          <ScrollView horizontal style={styles.horizontalFilter} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trackScroll}>
-            {['All', 'Easy', 'Medium', 'Hard'].map((difficulty) => {
-              const active = selectedDifficulty === difficulty;
-              return (
-                <TouchableOpacity key={difficulty} style={[styles.difficultyChip, active && styles.difficultyChipActive, active && difficulty === 'Easy' && styles.easyActive, active && difficulty === 'Medium' && styles.mediumActive, active && difficulty === 'Hard' && styles.hardActive]} onPress={() => handleDifficultyChange(difficulty)} activeOpacity={0.8}>
-                  <Text numberOfLines={1} style={[styles.difficultyText, active && styles.difficultyTextActive]}>{difficulty}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-          <Text style={styles.filterLabel}>Level</Text>
-          <ScrollView horizontal style={styles.horizontalFilter} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trackScroll}>
-            {['All', 'Foundation', 'Intermediate', 'Advanced'].map((level) => {
-              const active = selectedLevel === level;
-              return (
-                <TouchableOpacity key={level} style={[styles.levelChip, active && styles.levelChipActive]} onPress={() => handleLevelChange(level)} activeOpacity={0.8}>
-                  <Text numberOfLines={1} style={[styles.levelText, active && styles.levelTextActive]}>{level}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
+              {openFilter === filter.key ? (
+                <View style={styles.dropdownMenu}>
+                  <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled>
+                    {filter.options.map((option) => (
+                      <TouchableOpacity key={option} style={[styles.dropdownOption, filter.value === option && styles.dropdownOptionActive]} onPress={() => { filter.onChange(option); setOpenFilter(null); }}>
+                        <Text style={[styles.dropdownOptionText, filter.value === option && styles.dropdownOptionTextActive]}>{option === 'All' && filter.key === 'category' ? 'All Topics' : option}</Text>
+                        {filter.value === option ? <Text style={styles.dropdownCheck}>✓</Text> : null}
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
+            </View>
+          ))}
+          <TouchableOpacity onPress={() => { handleTrackChange('All'); handleDifficultyChange('All'); handleLevelChange('All'); setOpenFilter(null); }} style={styles.clearFilters}>
+            <Text style={styles.clearFiltersText}>Clear filters</Text>
+          </TouchableOpacity>
         </View>
 
         {session && !isCompleted && !quizStatus ? <TouchableOpacity style={styles.endQuizButton} onPress={endQuiz}><Text style={styles.endQuizText}>End Quiz</Text></TouchableOpacity> : null}
@@ -671,6 +706,32 @@ const styles = StyleSheet.create({
   modeUntimedText: { color: '#0369A1' },
   horizontalFilter: { width: '100%', maxWidth: 540, flexGrow: 0, height: 56 },
   trackScroll: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 2, gap: 8 },
+  filterPanel: { width: '100%', maxWidth: 540, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0', gap: 8 },
+  dropdownWrap: { width: '100%', zIndex: 2 },
+  dropdownButton: { minHeight: 48, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F8FAFC' },
+  dropdownValue: { flex: 1, color: '#1E293B', fontSize: 14, fontWeight: '600' },
+  dropdownChevron: { color: '#64748B', fontSize: 12, marginLeft: 10 },
+  dropdownMenu: { marginTop: 4, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, backgroundColor: '#FFFFFF', overflow: 'hidden', elevation: 4 },
+  dropdownOption: { minHeight: 42, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  dropdownOptionActive: { backgroundColor: '#EEF2FF' },
+  dropdownOptionText: { color: '#334155', fontSize: 14 },
+  dropdownOptionTextActive: { color: '#4338CA', fontWeight: '700' },
+  dropdownCheck: { color: '#4F46E5', fontWeight: '800' },
+  clearFilters: { alignSelf: 'flex-end', paddingVertical: 4, paddingHorizontal: 2 },
+  clearFiltersText: { color: '#4F46E5', fontWeight: '700', fontSize: 12 },
+  authStatusBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 5, gap: 6 },
+  authStatusDot: { width: 7, height: 7, borderRadius: 4 },
+  authStatusText: { color: '#475569', fontSize: 11, fontWeight: '700' },
+  accountButton: { backgroundColor: '#EEF2FF', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
+  accountButtonText: { color: '#4338CA', fontSize: 13, fontWeight: '700' },
+  accountScreen: { width: '100%', maxWidth: 540, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 22, marginTop: 8, elevation: 2 },
+  backButton: { alignSelf: 'flex-start', marginBottom: 22 },
+  backButtonText: { color: '#4F46E5', fontSize: 14, fontWeight: '700' },
+  profileAvatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#E0E7FF', alignSelf: 'center', alignItems: 'center', justifyContent: 'center', marginBottom: 12 },
+  profileAvatarText: { color: '#4338CA', fontSize: 30, fontWeight: '800' },
+  accountScreenTitle: { color: '#0F172A', fontSize: 22, fontWeight: '800', textAlign: 'center', marginBottom: 10 },
+  profileInput: { minHeight: 46, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, paddingHorizontal: 12, color: '#0F172A', marginBottom: 12 },
+  accountDetailValue: { color: '#334155', fontSize: 14, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#F8FAFC', borderRadius: 10, marginBottom: 12 },
   filterGroup: { width: '100%', maxWidth: 540, marginBottom: 12 },
   filterLabel: { fontSize: 13, fontWeight: '700', color: '#64748B', marginTop: 8, marginBottom: 2 },
   categoryTab: {
