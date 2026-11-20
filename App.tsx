@@ -500,12 +500,14 @@ export default function App() {
             return (
               <TouchableOpacity
                 key={track}
-                style={[styles.trackPill, active && styles.trackPillActive]}
+                style={[styles.categoryTab, active && styles.categoryTabActive]}
                 onPress={() => handleTrackChange(track)}
+                activeOpacity={0.8}
               >
-                <Text style={[styles.trackPillText, active && styles.trackPillTextActive]}>
-                  {track}
+                <Text style={[styles.categoryTabText, active && styles.categoryTabTextActive]}>
+                  {track === 'All' ? '✦  All Topics' : track}
                 </Text>
+                {active ? <View style={styles.categoryActiveMark} /> : null}
               </TouchableOpacity>
             );
           })}
@@ -517,8 +519,8 @@ export default function App() {
             {['All', 'Easy', 'Medium', 'Hard'].map((difficulty) => {
               const active = selectedDifficulty === difficulty;
               return (
-                <TouchableOpacity key={difficulty} style={[styles.trackPill, active && styles.trackPillActive]} onPress={() => handleDifficultyChange(difficulty)}>
-                  <Text numberOfLines={1} style={[styles.trackPillText, active && styles.trackPillTextActive]}>{difficulty}</Text>
+                <TouchableOpacity key={difficulty} style={[styles.difficultyChip, active && styles.difficultyChipActive, active && difficulty === 'Easy' && styles.easyActive, active && difficulty === 'Medium' && styles.mediumActive, active && difficulty === 'Hard' && styles.hardActive]} onPress={() => handleDifficultyChange(difficulty)} activeOpacity={0.8}>
+                  <Text numberOfLines={1} style={[styles.difficultyText, active && styles.difficultyTextActive]}>{difficulty}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -528,8 +530,8 @@ export default function App() {
             {['All', 'Foundation', 'Intermediate', 'Advanced'].map((level) => {
               const active = selectedLevel === level;
               return (
-                <TouchableOpacity key={level} style={[styles.trackPill, active && styles.trackPillActive]} onPress={() => handleLevelChange(level)}>
-                  <Text numberOfLines={1} style={[styles.trackPillText, active && styles.trackPillTextActive]}>{level}</Text>
+                <TouchableOpacity key={level} style={[styles.levelChip, active && styles.levelChipActive]} onPress={() => handleLevelChange(level)} activeOpacity={0.8}>
+                  <Text numberOfLines={1} style={[styles.levelText, active && styles.levelTextActive]}>{level}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -671,20 +673,34 @@ const styles = StyleSheet.create({
   trackScroll: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 2, gap: 8 },
   filterGroup: { width: '100%', maxWidth: 540, marginBottom: 12 },
   filterLabel: { fontSize: 13, fontWeight: '700', color: '#64748B', marginTop: 8, marginBottom: 2 },
-  trackPill: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    minHeight: 42,
+  categoryTab: {
+    minHeight: 48,
+    paddingHorizontal: 18,
+    paddingVertical: 11,
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
-    borderRadius: 20,
-    backgroundColor: '#E2E8F0',
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     marginRight: 8,
   },
-  trackPillActive: { backgroundColor: '#4F46E5' },
-  trackPillText: { fontSize: 13, fontWeight: '600', color: '#475569', flexShrink: 0 },
-  trackPillTextActive: { color: '#FFFFFF' },
+  categoryTabActive: { backgroundColor: '#312E81', borderColor: '#312E81' },
+  categoryTabText: { fontSize: 14, fontWeight: '700', color: '#475569' },
+  categoryTabTextActive: { color: '#FFFFFF' },
+  categoryActiveMark: { height: 3, width: 24, borderRadius: 2, backgroundColor: '#C4B5FD', marginTop: 5 },
+  difficultyChip: { minHeight: 38, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 10, backgroundColor: '#F1F5F9', borderWidth: 1, borderColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center', flexShrink: 0, marginRight: 8 },
+  difficultyChipActive: { backgroundColor: '#4F46E5', borderColor: '#4F46E5' },
+  easyActive: { backgroundColor: '#15803D', borderColor: '#15803D' },
+  mediumActive: { backgroundColor: '#D97706', borderColor: '#D97706' },
+  hardActive: { backgroundColor: '#DC2626', borderColor: '#DC2626' },
+  difficultyText: { fontSize: 13, fontWeight: '700', color: '#475569' },
+  difficultyTextActive: { color: '#FFFFFF' },
+  levelChip: { minHeight: 40, paddingHorizontal: 15, paddingVertical: 9, borderRadius: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#CBD5E1', justifyContent: 'center', alignItems: 'center', flexShrink: 0, marginRight: 8 },
+  levelChipActive: { backgroundColor: '#EDE9FE', borderColor: '#7C3AED' },
+  levelText: { fontSize: 13, fontWeight: '600', color: '#475569' },
+  levelTextActive: { color: '#6D28D9' },
   card: {
     width: '100%',
     maxWidth: 540,
