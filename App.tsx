@@ -144,12 +144,28 @@ export default function App() {
       const result = await WebBrowser.openAuthSessionAsync(data.url, AUTH_REDIRECT_URL);
       if (result.type === 'success') {
         const callbackUrl = new URL(result.url);
-        const authErrorDescription = callbackUrl.searchParams.get('error_description') || callbackUrl.searchParams.get('error');
+        const fragment = new URLSearchParams(callbackUrl.hash.replace(/^#/, ''));
+        const authErrorDescription =
+          callbackUrl.searchParams.get('error_description') ||
+          callbackUrl.searchParams.get('error') ||
+          fragment.get('error_description') ||
+          fragment.get('error');
         if (authErrorDescription) throw new Error(authErrorDescription);
-        const code = callbackUrl.searchParams.get('code');
-        if (!code) throw new Error('Google sign-in did not return an authorization code.');
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-        if (exchangeError) throw exchangeError;
+
+        const code = callbackUrl.searchParams.get('code') || fragment.get('code');
+        if (code) {
+          const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (exchangeError) throw exchangeError;
+        } else {
+          // Some OAuth configurations return tokens in the URL fragment instead of a PKCE code.
+          const access_token = fragment.get('access_token') || callbackUrl.searchParams.get('access_token');
+          const refresh_token = fragment.get('refresh_token') || callbackUrl.searchParams.get('refresh_token');
+          if (!access_token || !refresh_token) {
+            throw new Error('Google sign-in returned without an authorization code or session tokens. Please try again.');
+          }
+          const { error: sessionError } = await supabase.auth.setSession({ access_token, refresh_token });
+          if (sessionError) throw sessionError;
+        }
       } else if (result.type === 'error') {
         throw new Error('Google sign-in could not be completed. Please try again.');
       }
