@@ -615,7 +615,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: '#F8FAFC' },
-  container: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 28, alignItems: 'center' },
+  container: { flexGrow: 1, paddingHorizontal: 16, paddingTop: (StatusBar.currentHeight ?? 0) + 12, paddingBottom: 28, alignItems: 'center' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   topBar: {
     width: '100%',
