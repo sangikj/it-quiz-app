@@ -259,8 +259,18 @@ export default function App() {
       !showExplanation
     ) {
       setShowExplanation(true);
+      const question = filteredQuestions[currentIndex];
+      setAnswers((previous) => previous.some((answer) => answer.question_id === question.id)
+        ? previous
+        : [...previous, {
+            question_id: question.id,
+            selected_index: null,
+            correct_index: question.correct_index,
+            is_correct: false,
+            time_taken_seconds: TIME_LIMIT,
+          }]);
     }
-  }, [isTimedMode, loading, filteredQuestions.length, currentIndex, timeLeft, selectedOption, showExplanation]);
+  }, [isTimedMode, loading, filteredQuestions, currentIndex, timeLeft, selectedOption, showExplanation]);
 
   const handleTrackChange = (track: string) => {
     setSelectedTrack(track);
@@ -269,6 +279,11 @@ export default function App() {
     setShowExplanation(false);
     setScore(0);
     setTimeLeft(TIME_LIMIT);
+    setAnswers([]);
+    setQuizStartedAt(Date.now());
+    setQuizStatus(null);
+    setSaveMessage(null);
+    savedAttemptRef.current = false;
   };
 
   const resetForFilterChange = () => {
@@ -298,7 +313,17 @@ export default function App() {
     if (selectedOption !== null || showExplanation || (isTimedMode && timeLeft === 0)) return;
     setSelectedOption(index);
     setShowExplanation(true);
-    if (index === filteredQuestions[currentIndex].correct_index) {
+    const question = filteredQuestions[currentIndex];
+    setAnswers((previous) => previous.some((answer) => answer.question_id === question.id)
+      ? previous
+      : [...previous, {
+          question_id: question.id,
+          selected_index: index,
+          correct_index: question.correct_index,
+          is_correct: index === question.correct_index,
+          time_taken_seconds: isTimedMode ? Math.max(0, TIME_LIMIT - timeLeft) : 0,
+        }]);
+    if (index === question.correct_index) {
       setScore((prev) => prev + 1);
     }
   };
@@ -513,8 +538,6 @@ export default function App() {
             <Text style={styles.scoreText}>
               Score ({selectedTrack}): {score} / {filteredQuestions.length}
             </Text>
-            {saveMessage ? <Text style={styles.saveMessage}>{saveMessage}</Text> : null}
-            {isSavingAttempt ? <ActivityIndicator color="#4F46E5" /> : null}
             {saveMessage ? <Text style={styles.saveMessage}>{saveMessage}</Text> : null}
             {isSavingAttempt ? <ActivityIndicator color="#4F46E5" /> : null}
             <TouchableOpacity style={styles.btnPrimary} onPress={restartQuiz}>
