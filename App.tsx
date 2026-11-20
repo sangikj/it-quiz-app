@@ -8,11 +8,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   TextInput,
 } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from './lib/supabase';
 
 interface AnswerRecord {
@@ -99,7 +99,7 @@ WebBrowser.maybeCompleteAuthSession();
 const AUTH_REDIRECT_URL = 'sangarya-it-quiz://auth/callback';
 const TIME_LIMIT = 30; // seconds per question in Timed mode
 
-export default function App() {
+function AppContent() {
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [authLoading, setAuthLoading] = useState(true);
   const [session, setSession] = useState<any>(null);
@@ -123,6 +123,7 @@ export default function App() {
   const [isSavingAttempt, setIsSavingAttempt] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
@@ -529,51 +530,52 @@ export default function App() {
               <Text numberOfLines={1} style={styles.accountLabel}>{session?.user?.email ?? 'Practice without an account'}</Text>
               <View style={styles.authStatusBadge}><View style={[styles.authStatusDot, { backgroundColor: session ? '#16A34A' : '#D97706' }]} /><Text style={styles.authStatusText}>{session ? 'Signed in with Google' : 'Guest mode'}</Text></View>
             </View>
-            <TouchableOpacity style={styles.accountButton} onPress={() => setShowAccount(true)}><Text style={styles.accountButtonText}>Account</Text></TouchableOpacity>
+            <View style={styles.headerActions}>
+              {!isCompleted && !quizStatus ? <TouchableOpacity style={styles.headerEndButton} onPress={endQuiz} accessibilityRole="button"><Text style={styles.headerEndButtonText}>End Quiz</Text></TouchableOpacity> : null}
+              <TouchableOpacity style={styles.accountButton} onPress={() => setShowAccount(true)}><Text style={styles.accountButtonText}>Account</Text></TouchableOpacity>
+            </View>
           </View>
           <TouchableOpacity
             style={[styles.modeToggle, isTimedMode ? styles.modeTimed : styles.modeUntimed]}
             onPress={toggleTimerMode}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: isTimedMode }}
           >
             <Text style={[styles.modeToggleText, isTimedMode ? styles.modeTimedText : styles.modeUntimedText]}>
-              {isTimedMode ? '⏱ 30s Timer: ON' : '♾️ No Timer'}
+              {isTimedMode ? '⏱ 30s Timer  ● ON' : '♾️ No Timer  ○ OFF'}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Compact dropdown filters */}
+        {/* Filters stay compact while answering; expand only when the user needs to change them. */}
         <View style={styles.filterPanel}>
-          {[
-            { key: 'category', label: 'Technology', value: selectedTrack, options: tracks, onChange: handleTrackChange },
-            { key: 'difficulty', label: 'Difficulty', value: selectedDifficulty, options: ['All', 'Easy', 'Medium', 'Hard'], onChange: handleDifficultyChange },
-            { key: 'level', label: 'Level', value: selectedLevel, options: ['All', 'Foundation', 'Intermediate', 'Advanced'], onChange: handleLevelChange },
-          ].map((filter) => (
-            <View key={filter.key} style={styles.dropdownWrap}>
-              <Text style={styles.filterLabel}>{filter.label}</Text>
-              <TouchableOpacity style={styles.dropdownButton} onPress={() => setOpenFilter(openFilter === filter.key ? null : filter.key)} activeOpacity={0.8}>
-                <Text numberOfLines={1} style={styles.dropdownValue}>{filter.value === 'All' ? (filter.key === 'category' ? 'All Topics' : 'All') : filter.value}</Text>
-                <Text style={styles.dropdownChevron}>{openFilter === filter.key ? '▲' : '▼'}</Text>
-              </TouchableOpacity>
-              {openFilter === filter.key ? (
-                <View style={styles.dropdownMenu}>
-                  <ScrollView style={{ maxHeight: 220 }} nestedScrollEnabled>
-                    {filter.options.map((option) => (
-                      <TouchableOpacity key={option} style={[styles.dropdownOption, filter.value === option && styles.dropdownOptionActive]} onPress={() => { filter.onChange(option); setOpenFilter(null); }}>
-                        <Text style={[styles.dropdownOptionText, filter.value === option && styles.dropdownOptionTextActive]}>{option === 'All' && filter.key === 'category' ? 'All Topics' : option}</Text>
-                        {filter.value === option ? <Text style={styles.dropdownCheck}>✓</Text> : null}
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              ) : null}
-            </View>
-          ))}
-          <TouchableOpacity onPress={() => { handleTrackChange('All'); handleDifficultyChange('All'); handleLevelChange('All'); setOpenFilter(null); }} style={styles.clearFilters}>
-            <Text style={styles.clearFiltersText}>Clear filters</Text>
+          <TouchableOpacity style={styles.filterSummaryButton} onPress={() => { setFiltersExpanded((value) => !value); setOpenFilter(null); }} accessibilityRole="button" accessibilityState={{ expanded: filtersExpanded }}>
+            <Text style={styles.filterSummaryText}>{selectedTrack === 'All' && selectedDifficulty === 'All' && selectedLevel === 'All' ? 'Filters (All)' : `Filters · ${selectedTrack === 'All' ? 'All topics' : selectedTrack} · ${selectedDifficulty} · ${selectedLevel}`}</Text>
+            <Text style={styles.dropdownChevron}>{filtersExpanded ? '▲' : '▼'}</Text>
           </TouchableOpacity>
+          {filtersExpanded ? <View style={styles.expandedFilters}>
+            {[
+              { key: 'category', label: 'Category', value: selectedTrack, options: tracks, onChange: handleTrackChange },
+              { key: 'difficulty', label: 'Difficulty', value: selectedDifficulty, options: ['All', 'Easy', 'Medium', 'Hard'], onChange: handleDifficultyChange },
+              { key: 'level', label: 'Level', value: selectedLevel, options: ['All', 'Foundation', 'Intermediate', 'Advanced'], onChange: handleLevelChange },
+            ].map((filter) => (
+              <View key={filter.key} style={styles.dropdownWrap}>
+                <Text style={styles.filterLabel}>{filter.label}</Text>
+                <TouchableOpacity style={styles.dropdownButton} onPress={() => setOpenFilter(openFilter === filter.key ? null : filter.key)} activeOpacity={0.8}>
+                  <Text numberOfLines={1} style={styles.dropdownValue}>{filter.value === 'All' ? (filter.key === 'category' ? 'All Topics' : 'All') : filter.value}</Text>
+                  <Text style={styles.dropdownChevron}>{openFilter === filter.key ? '▲' : '▼'}</Text>
+                </TouchableOpacity>
+                {openFilter === filter.key ? <View style={styles.dropdownMenu}><ScrollView style={{ maxHeight: 180 }} nestedScrollEnabled>
+                  {filter.options.map((option) => <TouchableOpacity key={option} style={[styles.dropdownOption, filter.value === option && styles.dropdownOptionActive]} onPress={() => { filter.onChange(option); setOpenFilter(null); }}>
+                    <Text style={[styles.dropdownOptionText, filter.value === option && styles.dropdownOptionTextActive]}>{option === 'All' && filter.key === 'category' ? 'All Topics' : option}</Text>
+                    {filter.value === option ? <Text style={styles.dropdownCheck}>✓</Text> : null}
+                  </TouchableOpacity>)}
+                </ScrollView></View> : null}
+              </View>
+            ))}
+            <TouchableOpacity onPress={() => { handleTrackChange('All'); handleDifficultyChange('All'); handleLevelChange('All'); setOpenFilter(null); }} style={styles.clearFilters}><Text style={styles.clearFiltersText}>Clear filters</Text></TouchableOpacity>
+          </View> : null}
         </View>
-
-        {session && !isCompleted && !quizStatus ? <TouchableOpacity style={styles.endQuizButton} onPress={endQuiz}><Text style={styles.endQuizText}>End Quiz</Text></TouchableOpacity> : null}
         {isCompleted || quizStatus === 'ended' ? (
           <View style={styles.card}>
             <Text style={styles.heading}>{quizStatus === 'ended' ? 'Quiz Ended' : 'Track Completed! 🎉'}</Text>
@@ -660,9 +662,13 @@ export default function App() {
   );
 }
 
+export default function App() {
+  return <SafeAreaProvider><AppContent /></SafeAreaProvider>;
+}
+
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: '#F8FAFC' },
-  container: { flexGrow: 1, paddingHorizontal: 16, paddingTop: (StatusBar.currentHeight ?? 0) + 12, paddingBottom: 28, alignItems: 'center' },
+  container: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, alignItems: 'center' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   topBar: {
     width: '100%',
@@ -697,7 +703,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   modeTimed: { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' },
   modeUntimed: { backgroundColor: '#E0F2FE', borderColor: '#0284C7' },
@@ -706,7 +717,11 @@ const styles = StyleSheet.create({
   modeUntimedText: { color: '#0369A1' },
   horizontalFilter: { width: '100%', maxWidth: 540, flexGrow: 0, height: 56 },
   trackScroll: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 2, gap: 8 },
-  filterPanel: { width: '100%', maxWidth: 540, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0', gap: 8 },
+  filterPanel: { width: '100%', maxWidth: 540, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 8, marginBottom: 8, borderWidth: 1, borderColor: '#E2E8F0' },
+  filterSummaryButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8 },
+  filterSummaryText: { flex: 1, color: '#334155', fontSize: 13, fontWeight: '700' },
+  expandedFilters: { gap: 8, paddingHorizontal: 6, paddingBottom: 4 },
+  
   dropdownWrap: { width: '100%', zIndex: 2 },
   dropdownButton: { minHeight: 48, borderWidth: 1, borderColor: '#CBD5E1', borderRadius: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#F8FAFC' },
   dropdownValue: { flex: 1, color: '#1E293B', fontSize: 14, fontWeight: '600' },
@@ -722,7 +737,10 @@ const styles = StyleSheet.create({
   authStatusBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 5, gap: 6 },
   authStatusDot: { width: 7, height: 7, borderRadius: 4 },
   authStatusText: { color: '#475569', fontSize: 11, fontWeight: '700' },
-  accountButton: { backgroundColor: '#EEF2FF', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerEndButton: { backgroundColor: '#FEE2E2', paddingHorizontal: 10, paddingVertical: 9, borderRadius: 9 },
+  headerEndButtonText: { color: '#B91C1C', fontSize: 11, fontWeight: '800' },
+  accountButton: { backgroundColor: '#EEF2FF', paddingHorizontal: 12, paddingVertical: 9, borderRadius: 9 },
   accountButtonText: { color: '#4338CA', fontSize: 13, fontWeight: '700' },
   accountScreen: { width: '100%', maxWidth: 540, backgroundColor: '#FFFFFF', borderRadius: 18, padding: 22, marginTop: 8, elevation: 2 },
   backButton: { alignSelf: 'flex-start', marginBottom: 22 },
@@ -767,7 +785,7 @@ const styles = StyleSheet.create({
     maxWidth: 540,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 24,
+    padding: 16,
     shadowColor: '#000',
     shadowOpacity: 0.05,
     shadowRadius: 10,
@@ -780,7 +798,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 10,
   },
   badge: {
     backgroundColor: '#EEF2FF',
@@ -805,25 +823,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 12,
   },
-  questionText: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 20, lineHeight: 26 },
+  questionText: { fontSize: 16, fontWeight: '700', color: '#0F172A', marginBottom: 12, lineHeight: 22 },
   optionCard: {
-    minHeight: 72,
+    minHeight: 54,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingVertical: 9,
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    marginBottom: 12,
+    marginBottom: 8,
     backgroundColor: '#FFFFFF',
     gap: 12,
   },
   correctCard: { borderColor: '#059669', backgroundColor: '#ECFDF5' },
   wrongCard: { borderColor: '#DC2626', backgroundColor: '#FEF2F2' },
   optionLetter: {
-    width: 34,
-    height: 34,
+    width: 30,
+    height: 30,
     borderRadius: 10,
     backgroundColor: '#F1F5F9',
     alignItems: 'center',
