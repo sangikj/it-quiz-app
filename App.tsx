@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { Linking } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import {
   View,
   Text,
@@ -81,10 +83,18 @@ function parseQuestions(data: unknown): Question[] {
   });
 }
 
+WebBrowser.maybeCompleteAuthSession();
+
+const AUTH_REDIRECT_URL = 'sangarya-it-quiz://auth/callback';
 const TIME_LIMIT = 30; // seconds per question in Timed mode
 
 export default function App() {
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [session, setSession] = useState<any>(null);
+  const [isGuest, setIsGuest] = useState(false);
+  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<string>('All');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('All');
   const [selectedLevel, setSelectedLevel] = useState<string>('All');
@@ -98,8 +108,63 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
 
   useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!mounted) return;
+      if (error) setAuthError(error.message);
+      setSession(data.session);
+      setAuthLoading(false);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+    });
+
     loadQuestions();
+    return () => {
+      mounted = false;
+      authListener.subscription.unsubscribe();
+    };
   }, []);
+
+  async function signInWithGoogle() {
+    setIsSigningIn(true);
+    setAuthError(null);
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: AUTH_REDIRECT_URL,
+          skipBrowserRedirect: true,
+        },
+      });
+      if (error) throw error;
+      if (!data?.url) throw new Error('Supabase did not return an authentication URL.');
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, AUTH_REDIRECT_URL);
+      if (result.type === 'success') {
+        const callbackUrl = new URL(result.url);
+        const authErrorDescription = callbackUrl.searchParams.get('error_description') || callbackUrl.searchParams.get('error');
+        if (authErrorDescription) throw new Error(authErrorDescription);
+        const code = callbackUrl.searchParams.get('code');
+        if (!code) throw new Error('Google sign-in did not return an authorization code.');
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+        if (exchangeError) throw exchangeError;
+      } else if (result.type === 'error') {
+        throw new Error('Google sign-in could not be completed. Please try again.');
+      }
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Google sign-in failed.');
+    } finally {
+      setIsSigningIn(false);
+    }
+  }
+
+  async function signOut() {
+    const { error } = await supabase.auth.signOut();
+    if (error) setAuthError(error.message);
+    setIsGuest(false);
+  }
 
   async function loadQuestions() {
     setLoading(true);
@@ -222,6 +287,34 @@ export default function App() {
     setScore(0);
   };
 
+  if (authLoading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#4F46E5" />
+        <Text style={{ marginTop: 12, color: '#64748B' }}>Checking your account...</Text>
+      </View>
+    );
+  }
+
+  if (!session && !isGuest) {
+    return (
+      <SafeAreaView style={styles.wrapper}>
+        <View style={styles.authContainer}>
+          <Text style={styles.authTitle}>Sangarya IT Quiz</Text>
+          <Text style={styles.authSubtitle}>Practise. Improve. Get interview-ready.</Text>
+          <TouchableOpacity style={styles.btnPrimary} onPress={signInWithGoogle} disabled={isSigningIn}>
+            {isSigningIn ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.btnText}>Continue with Google</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.guestButton} onPress={() => { setAuthError(null); setIsGuest(true); }}>
+            <Text style={styles.guestButtonText}>Continue as Guest</Text>
+          </TouchableOpacity>
+          {authError ? <Text style={styles.authError}>{authError}</Text> : null}
+          <Text style={styles.authFootnote}>Sign in to keep your account ready for saved scores and quiz history. Guest practice does not require an account.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -263,7 +356,11 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.container}>
         {/* Top Controls: Timer Mode Toggle */}
         <View style={styles.topBar}>
-          <Text style={styles.appTitle}>Sangarya IT Quiz</Text>
+          <View style={styles.accountInfo}>
+            <Text style={styles.appTitle}>Sangarya IT Quiz</Text>
+            <Text style={styles.accountLabel}>{session?.user?.email ?? 'Guest mode'}</Text>
+          </View>
+          {session ? <TouchableOpacity style={styles.signOutButton} onPress={signOut}><Text style={styles.signOutText}>Sign out</Text></TouchableOpacity> : null}
           <TouchableOpacity
             style={[styles.modeToggle, isTimedMode ? styles.modeTimed : styles.modeUntimed]}
             onPress={toggleTimerMode}
@@ -408,6 +505,17 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   appTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
+  accountInfo: { flex: 1 },
+  accountLabel: { fontSize: 11, color: '#64748B', marginTop: 2 },
+  signOutButton: { paddingHorizontal: 9, paddingVertical: 7, borderRadius: 8, backgroundColor: '#FEE2E2', marginRight: 8 },
+  signOutText: { color: '#B91C1C', fontSize: 11, fontWeight: '700' },
+  authContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 28, width: '100%' },
+  authTitle: { fontSize: 28, fontWeight: '800', color: '#0F172A', marginBottom: 8 },
+  authSubtitle: { fontSize: 15, color: '#64748B', marginBottom: 32, textAlign: 'center' },
+  guestButton: { marginTop: 14, padding: 14, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', width: '100%', maxWidth: 360, alignItems: 'center' },
+  guestButtonText: { color: '#334155', fontSize: 15, fontWeight: '700' },
+  authError: { color: '#DC2626', textAlign: 'center', marginTop: 14 },
+  authFootnote: { color: '#94A3B8', textAlign: 'center', fontSize: 12, lineHeight: 18, marginTop: 28, maxWidth: 340 },
   modeToggle: {
     paddingHorizontal: 12,
     paddingVertical: 6,
