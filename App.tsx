@@ -575,11 +575,17 @@ export default function App() {
 
             {currentQ.options.map((option, idx) => {
               let optionStyle: any = styles.optionCard;
+              let letterStyle: any = styles.optionLetter;
+              let letterTextStyle: any = styles.optionLetterText;
               if (showExplanation) {
                 if (idx === currentQ.correct_index) {
                   optionStyle = [styles.optionCard, styles.correctCard];
+                  letterStyle = [styles.optionLetter, styles.correctLetter];
+                  letterTextStyle = [styles.optionLetterText, styles.correctLetterText];
                 } else if (idx === selectedOption) {
                   optionStyle = [styles.optionCard, styles.wrongCard];
+                  letterStyle = [styles.optionLetter, styles.wrongLetter];
+                  letterTextStyle = [styles.optionLetterText, styles.wrongLetterText];
                 }
               }
 
@@ -589,10 +595,14 @@ export default function App() {
                   style={optionStyle}
                   onPress={() => handleSelect(idx)}
                   disabled={showExplanation || (isTimedMode && timeLeft === 0)}
+                  activeOpacity={0.78}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Option ${String.fromCharCode(65 + idx)}: ${option}`}
                 >
-                  <Text style={styles.optionLabel}>
-                    {String.fromCharCode(65 + idx)}. {option}
-                  </Text>
+                  <View style={letterStyle}>
+                    <Text style={letterTextStyle}>{String.fromCharCode(65 + idx)}</Text>
+                  </View>
+                  <Text style={styles.optionLabel}>{option}</Text>
                 </TouchableOpacity>
               );
             })}
@@ -720,16 +730,35 @@ const styles = StyleSheet.create({
   },
   questionText: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 20, lineHeight: 26 },
   optionCard: {
-    padding: 16,
-    borderRadius: 12,
+    minHeight: 72,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
     marginBottom: 12,
     backgroundColor: '#FFFFFF',
+    gap: 12,
   },
-  correctCard: { borderColor: '#10B981', backgroundColor: '#ECFDF5' },
-  wrongCard: { borderColor: '#EF4444', backgroundColor: '#FEF2F2' },
-  optionLabel: { fontSize: 15, color: '#334155', fontWeight: '500' },
+  correctCard: { borderColor: '#059669', backgroundColor: '#ECFDF5' },
+  wrongCard: { borderColor: '#DC2626', backgroundColor: '#FEF2F2' },
+  optionLetter: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  optionLetterText: { fontSize: 14, fontWeight: '800', color: '#475569' },
+  correctLetter: { backgroundColor: '#059669' },
+  correctLetterText: { color: '#FFFFFF' },
+  wrongLetter: { backgroundColor: '#DC2626' },
+  wrongLetterText: { color: '#FFFFFF' },
+  optionLabel: { flex: 1, flexShrink: 1, fontSize: 15, lineHeight: 22, color: '#334155', fontWeight: '500' },
   explanationBox: { marginTop: 16, padding: 16, backgroundColor: '#F1F5F9', borderRadius: 10 },
   explanationTitle: { fontSize: 14, fontWeight: '700', color: '#1E293B', marginBottom: 4 },
   explanationText: { fontSize: 14, color: '#475569', lineHeight: 20 },
