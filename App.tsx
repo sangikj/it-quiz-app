@@ -125,6 +125,8 @@ function AppContent() {
   const [openFilter, setOpenFilter] = useState<string | null>(null);
   const [filtersExpanded, setFiltersExpanded] = useState(true);
   const [quizStarted, setQuizStarted] = useState(false);
+  const [questionCount, setQuestionCount] = useState<number | 'All'>(10);
+  const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [showAccount, setShowAccount] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
@@ -265,15 +267,15 @@ function AppContent() {
 
   // Keep one interval per active question; state updates cannot drift below zero.
   useEffect(() => {
-    if (!quizStarted || !isTimedMode || loading || filteredQuestions.length === 0 || timeLeft === 0) return;
-    if (currentIndex >= filteredQuestions.length || selectedOption !== null || showExplanation) return;
+    if (!quizStarted || !isTimedMode || loading || quizQuestions.length === 0 || timeLeft === 0) return;
+    if (currentIndex >= quizQuestions.length || selectedOption !== null || showExplanation) return;
 
     const timer = setInterval(() => {
       setTimeLeft((previous) => Math.max(0, previous - 1));
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [quizStarted, isTimedMode, loading, filteredQuestions.length, currentIndex, selectedOption, showExplanation, timeLeft]);
+  }, [quizStarted, isTimedMode, loading, quizQuestions.length, currentIndex, selectedOption, showExplanation, timeLeft]);
 
   // Reveal the answer once the countdown reaches zero.
   useEffect(() => {
@@ -281,14 +283,14 @@ function AppContent() {
       quizStarted &&
       isTimedMode &&
       !loading &&
-      filteredQuestions.length > 0 &&
-      currentIndex < filteredQuestions.length &&
+      quizQuestions.length > 0 &&
+      currentIndex < quizQuestions.length &&
       timeLeft === 0 &&
       selectedOption === null &&
       !showExplanation
     ) {
       setShowExplanation(true);
-      const question = filteredQuestions[currentIndex];
+      const question = quizQuestions[currentIndex];
       setAnswers((previous) => previous.some((answer) => answer.question_id === question.id)
         ? previous
         : [...previous, {
@@ -299,7 +301,7 @@ function AppContent() {
             time_taken_seconds: TIME_LIMIT,
           }]);
     }
-  }, [quizStarted, isTimedMode, loading, filteredQuestions, currentIndex, timeLeft, selectedOption, showExplanation]);
+  }, [quizStarted, isTimedMode, loading, quizQuestions, currentIndex, timeLeft, selectedOption, showExplanation]);
 
   const handleTrackChange = (track: string) => {
     setQuizStarted(false); setFiltersExpanded(true);
@@ -338,6 +340,13 @@ function AppContent() {
 
   const startQuiz = () => {
     if (filteredQuestions.length === 0) { Alert.alert('No questions found', 'Please choose different filters.'); return; }
+    const shuffled = [...filteredQuestions];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    const selectedQuestions = questionCount === 'All' ? shuffled : shuffled.slice(0, Math.min(questionCount, shuffled.length));
+    setQuizQuestions(selectedQuestions);
     setCurrentIndex(0); setSelectedOption(null); setShowExplanation(false); setScore(0); setAnswers([]);
     setTimeLeft(TIME_LIMIT); setQuizStarted(true); setFiltersExpanded(false); setQuizStartedAt(Date.now());
     setQuizStatus(null); setSaveMessage(null); savedAttemptRef.current = false;
@@ -380,7 +389,7 @@ function AppContent() {
     setIsSavingAttempt(true);
     setSaveMessage(null);
     try {
-      const total = filteredQuestions.length;
+      const total = quizQuestions.length;
       const { data: attempt, error: attemptError } = await supabase.from('quiz_attempts').insert({
         user_id: session.user.id,
         track: selectedTrack === 'All' ? null : selectedTrack,
@@ -409,11 +418,11 @@ function AppContent() {
   };
 
   useEffect(() => {
-    if (quizStarted && currentIndex >= filteredQuestions.length && filteredQuestions.length > 0 && !quizStatus) {
+    if (quizStarted && currentIndex >= quizQuestions.length && quizQuestions.length > 0 && !quizStatus) {
       setQuizStatus('completed');
       if (session?.user?.id) void saveAttempt('completed');
     }
-  }, [quizStarted, currentIndex, filteredQuestions.length, quizStatus, session?.user?.id]);
+  }, [quizStarted, currentIndex, quizQuestions.length, quizStatus, session?.user?.id]);
 
   const endQuiz = () => {
     Alert.alert('End quiz?', 'Your current score will be saved as a partial attempt.', [
@@ -528,8 +537,8 @@ function AppContent() {
     );
   }
 
-  const isCompleted = currentIndex >= filteredQuestions.length;
-  const currentQ = filteredQuestions[currentIndex];
+  const isCompleted = quizStarted && currentIndex >= quizQuestions.length;
+  const currentQ = quizQuestions[currentIndex];
 
   return (
     <SafeAreaView style={styles.wrapper}>
@@ -593,7 +602,7 @@ function AppContent() {
           <View style={styles.card}>
             <Text style={styles.heading}>{quizStatus === 'ended' ? 'Quiz Ended' : 'Track Completed! 🎉'}</Text>
             <Text style={styles.scoreText}>
-              Score ({selectedTrack}): {score} / {filteredQuestions.length}
+              Score ({selectedTrack}): {score} / {quizQuestions.length}
             </Text>
             {saveMessage ? <Text style={styles.saveMessage}>{saveMessage}</Text> : null}
             {isSavingAttempt ? <ActivityIndicator color="#4F46E5" /> : null}
@@ -622,7 +631,7 @@ function AppContent() {
                 <Text style={styles.untimedBadge}>Practice Mode</Text>
               )}
               <Text style={styles.progress}>
-                {currentIndex + 1} / {filteredQuestions.length}
+                {currentIndex + 1} / {quizQuestions.length}
               </Text>
             </View>
 
@@ -738,6 +747,11 @@ const styles = StyleSheet.create({
   horizontalFilter: { width: '100%', maxWidth: 540, flexGrow: 0, height: 56 },
   trackScroll: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 2, gap: 8 },
   filterPanel: { width: '100%', maxWidth: 540, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 8, marginBottom: 8, borderWidth: 1, borderColor: '#E2E8F0' },
+  questionCountRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8, justifyContent: 'center' },
+  questionCountButton: { minWidth: 48, minHeight: 42, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderColor: '#CBD5E1', backgroundColor: '#F8FAFC', alignItems: 'center', justifyContent: 'center' },
+  questionCountButtonActive: { backgroundColor: '#312E81', borderColor: '#312E81' },
+  questionCountText: { color: '#334155', fontSize: 14, fontWeight: '700' },
+  questionCountTextActive: { color: '#FFFFFF' },
   filterSummaryButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8 },
   filterSummaryText: { flex: 1, color: '#334155', fontSize: 13, fontWeight: '700' },
   expandedFilters: { gap: 8, paddingHorizontal: 6, paddingBottom: 4 },
