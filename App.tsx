@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   SafeAreaView,
   ScrollView,
+  StatusBar,
 } from 'react-native';
 import { supabase } from './lib/supabase';
 
@@ -466,14 +467,17 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.wrapper}>
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" translucent={false} />
       <ScrollView contentContainerStyle={styles.container}>
         {/* Top Controls: Timer Mode Toggle */}
         <View style={styles.topBar}>
-          <View style={styles.accountInfo}>
-            <Text style={styles.appTitle}>Sangarya IT Quiz</Text>
-            <Text style={styles.accountLabel}>{session?.user?.email ?? 'Guest mode'}</Text>
+          <View style={styles.headerIdentity}>
+            <View style={styles.accountInfo}>
+              <Text style={styles.appTitle}>Sangarya IT Quiz</Text>
+              <Text numberOfLines={1} style={styles.accountLabel}>{session?.user?.email ?? 'Guest mode'}</Text>
+            </View>
+            {session ? <TouchableOpacity style={styles.signOutButton} onPress={signOut}><Text style={styles.signOutText}>Sign out</Text></TouchableOpacity> : null}
           </View>
-          {session ? <TouchableOpacity style={styles.signOutButton} onPress={signOut}><Text style={styles.signOutText}>Sign out</Text></TouchableOpacity> : null}
           <TouchableOpacity
             style={[styles.modeToggle, isTimedMode ? styles.modeTimed : styles.modeUntimed]}
             onPress={toggleTimerMode}
@@ -520,7 +524,7 @@ export default function App() {
             })}
           </ScrollView>
           <Text style={styles.filterLabel}>Level</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trackScroll}>
+          <ScrollView horizontal style={styles.horizontalFilter} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.trackScroll}>
             {['All', 'Foundation', 'Intermediate', 'Advanced'].map((level) => {
               const active = selectedLevel === level;
               return (
@@ -611,26 +615,29 @@ export default function App() {
 
 const styles = StyleSheet.create({
   wrapper: { flex: 1, backgroundColor: '#F8FAFC' },
-  container: { flexGrow: 1, padding: 16, alignItems: 'center' },
+  container: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 28, alignItems: 'center' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   topBar: {
     width: '100%',
     maxWidth: 540,
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 12,
+  },
+  headerIdentity: {
+    width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 10,
   },
-  appTitle: { fontSize: 18, fontWeight: '800', color: '#0F172A' },
-  accountInfo: { flex: 1 },
-  accountLabel: { fontSize: 11, color: '#64748B', marginTop: 2 },
-  signOutButton: { paddingHorizontal: 9, paddingVertical: 7, borderRadius: 8, backgroundColor: '#FEE2E2', marginRight: 8 },
-  signOutText: { color: '#B91C1C', fontSize: 11, fontWeight: '700' },
-  endQuizButton: { alignSelf: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FEE2E2', borderRadius: 8, marginBottom: 8 },
-  endQuizText: { color: '#B91C1C', fontSize: 12, fontWeight: '700' },
-  saveMessage: { color: '#475569', textAlign: 'center', marginVertical: 10, fontSize: 12 },
-  endQuizButton: { alignSelf: 'flex-end', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#FEE2E2', borderRadius: 8, marginBottom: 8 },
-  endQuizText: { color: '#B91C1C', fontSize: 12, fontWeight: '700' },
+  appTitle: { fontSize: 20, fontWeight: '800', color: '#0F172A' },
+  accountInfo: { flex: 1, minWidth: 0 },
+  accountLabel: { fontSize: 12, color: '#64748B', marginTop: 3 },
+  signOutButton: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 10, backgroundColor: '#FEE2E2' },
+  signOutText: { color: '#B91C1C', fontSize: 12, fontWeight: '700' },
+  endQuizButton: { alignSelf: 'flex-end', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#FEE2E2', borderRadius: 10, marginBottom: 8 },
+  endQuizText: { color: '#B91C1C', fontSize: 13, fontWeight: '700' },
   saveMessage: { color: '#475569', textAlign: 'center', marginVertical: 10, fontSize: 12 },
   authContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 28, width: '100%' },
   authTitle: { fontSize: 28, fontWeight: '800', color: '#0F172A', marginBottom: 8 },
@@ -640,23 +647,27 @@ const styles = StyleSheet.create({
   authError: { color: '#DC2626', textAlign: 'center', marginTop: 14 },
   authFootnote: { color: '#94A3B8', textAlign: 'center', fontSize: 12, lineHeight: 18, marginTop: 28, maxWidth: 340 },
   modeToggle: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     borderRadius: 20,
     borderWidth: 1,
   },
   modeTimed: { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' },
   modeUntimed: { backgroundColor: '#E0F2FE', borderColor: '#0284C7' },
-  modeToggleText: { fontSize: 12, fontWeight: '700' },
+  modeToggleText: { fontSize: 13, fontWeight: '700' },
   modeTimedText: { color: '#B45309' },
   modeUntimedText: { color: '#0369A1' },
   horizontalFilter: { width: '100%', maxWidth: 540, flexGrow: 0, height: 56 },
   trackScroll: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 2, gap: 8 },
-  filterGroup: { width: '100%', maxWidth: 540, marginBottom: 8 },
-  filterLabel: { fontSize: 12, fontWeight: '700', color: '#64748B', marginTop: 4 },
+  filterGroup: { width: '100%', maxWidth: 540, marginBottom: 12 },
+  filterLabel: { fontSize: 13, fontWeight: '700', color: '#64748B', marginTop: 8, marginBottom: 2 },
   trackPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    minHeight: 42,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
     borderRadius: 20,
     backgroundColor: '#E2E8F0',
     marginRight: 8,
