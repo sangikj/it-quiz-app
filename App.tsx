@@ -123,7 +123,8 @@ function AppContent() {
   const [isSavingAttempt, setIsSavingAttempt] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [openFilter, setOpenFilter] = useState<string | null>(null);
-  const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [filtersExpanded, setFiltersExpanded] = useState(true);
+  const [quizStarted, setQuizStarted] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
@@ -264,7 +265,7 @@ function AppContent() {
 
   // Keep one interval per active question; state updates cannot drift below zero.
   useEffect(() => {
-    if (!isTimedMode || loading || filteredQuestions.length === 0 || timeLeft === 0) return;
+    if (!quizStarted || !isTimedMode || loading || filteredQuestions.length === 0 || timeLeft === 0) return;
     if (currentIndex >= filteredQuestions.length || selectedOption !== null || showExplanation) return;
 
     const timer = setInterval(() => {
@@ -272,11 +273,12 @@ function AppContent() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isTimedMode, loading, filteredQuestions.length, currentIndex, selectedOption, showExplanation, timeLeft]);
+  }, [quizStarted, isTimedMode, loading, filteredQuestions.length, currentIndex, selectedOption, showExplanation, timeLeft]);
 
   // Reveal the answer once the countdown reaches zero.
   useEffect(() => {
     if (
+      quizStarted &&
       isTimedMode &&
       !loading &&
       filteredQuestions.length > 0 &&
@@ -297,9 +299,10 @@ function AppContent() {
             time_taken_seconds: TIME_LIMIT,
           }]);
     }
-  }, [isTimedMode, loading, filteredQuestions, currentIndex, timeLeft, selectedOption, showExplanation]);
+  }, [quizStarted, isTimedMode, loading, filteredQuestions, currentIndex, timeLeft, selectedOption, showExplanation]);
 
   const handleTrackChange = (track: string) => {
+    setQuizStarted(false); setFiltersExpanded(true);
     setSelectedTrack(track);
     setCurrentIndex(0);
     setSelectedOption(null);
@@ -322,13 +325,22 @@ function AppContent() {
   };
 
   const handleDifficultyChange = (difficulty: string) => {
+    setQuizStarted(false); setFiltersExpanded(true);
     setSelectedDifficulty(difficulty);
     resetForFilterChange();
   };
 
   const handleLevelChange = (level: string) => {
+    setQuizStarted(false); setFiltersExpanded(true);
     setSelectedLevel(level);
     resetForFilterChange();
+  };
+
+  const startQuiz = () => {
+    if (filteredQuestions.length === 0) { Alert.alert('No questions found', 'Please choose different filters.'); return; }
+    setCurrentIndex(0); setSelectedOption(null); setShowExplanation(false); setScore(0); setAnswers([]);
+    setTimeLeft(TIME_LIMIT); setQuizStarted(true); setFiltersExpanded(false); setQuizStartedAt(Date.now());
+    setQuizStatus(null); setSaveMessage(null); savedAttemptRef.current = false;
   };
 
   const toggleTimerMode = () => {
@@ -397,11 +409,11 @@ function AppContent() {
   };
 
   useEffect(() => {
-    if (currentIndex >= filteredQuestions.length && filteredQuestions.length > 0 && !quizStatus) {
+    if (quizStarted && currentIndex >= filteredQuestions.length && filteredQuestions.length > 0 && !quizStatus) {
       setQuizStatus('completed');
       if (session?.user?.id) void saveAttempt('completed');
     }
-  }, [currentIndex, filteredQuestions.length, quizStatus, session?.user?.id]);
+  }, [quizStarted, currentIndex, filteredQuestions.length, quizStatus, session?.user?.id]);
 
   const endQuiz = () => {
     Alert.alert('End quiz?', 'Your current score will be saved as a partial attempt.', [
@@ -415,6 +427,7 @@ function AppContent() {
   };
 
   const restartQuiz = () => {
+    setQuizStarted(false); setFiltersExpanded(true);
     setAnswers([]);
     setQuizStartedAt(Date.now());
     setQuizStatus(null);
@@ -531,7 +544,7 @@ function AppContent() {
               <View style={styles.authStatusBadge}><View style={[styles.authStatusDot, { backgroundColor: session ? '#16A34A' : '#D97706' }]} /><Text style={styles.authStatusText}>{session ? 'Signed in with Google' : 'Guest mode'}</Text></View>
             </View>
             <View style={styles.headerActions}>
-              {!isCompleted && !quizStatus ? <TouchableOpacity style={styles.headerEndButton} onPress={endQuiz} accessibilityRole="button"><Text style={styles.headerEndButtonText}>End Quiz</Text></TouchableOpacity> : null}
+              {quizStarted && !isCompleted && !quizStatus ? <TouchableOpacity style={styles.headerEndButton} onPress={endQuiz} accessibilityRole="button"><Text style={styles.headerEndButtonText}>End Quiz</Text></TouchableOpacity> : null}
               <TouchableOpacity style={styles.accountButton} onPress={() => setShowAccount(true)}><Text style={styles.accountButtonText}>Account</Text></TouchableOpacity>
             </View>
           </View>
@@ -549,11 +562,11 @@ function AppContent() {
 
         {/* Filters stay compact while answering; expand only when the user needs to change them. */}
         <View style={styles.filterPanel}>
-          <TouchableOpacity style={styles.filterSummaryButton} onPress={() => { setFiltersExpanded((value) => !value); setOpenFilter(null); }} accessibilityRole="button" accessibilityState={{ expanded: filtersExpanded }}>
+          {quizStarted ? <TouchableOpacity style={styles.filterSummaryButton} onPress={() => { setFiltersExpanded((value) => !value); setOpenFilter(null); }} accessibilityRole="button" accessibilityState={{ expanded: filtersExpanded }}>
             <Text style={styles.filterSummaryText}>{selectedTrack === 'All' && selectedDifficulty === 'All' && selectedLevel === 'All' ? 'Filters (All)' : `Filters · ${selectedTrack === 'All' ? 'All topics' : selectedTrack} · ${selectedDifficulty} · ${selectedLevel}`}</Text>
             <Text style={styles.dropdownChevron}>{filtersExpanded ? '▲' : '▼'}</Text>
           </TouchableOpacity>
-          {filtersExpanded ? <View style={styles.expandedFilters}>
+          {!quizStarted || filtersExpanded ? <View style={styles.expandedFilters}>
             {[
               { key: 'category', label: 'Category', value: selectedTrack, options: tracks, onChange: handleTrackChange },
               { key: 'difficulty', label: 'Difficulty', value: selectedDifficulty, options: ['All', 'Easy', 'Medium', 'Hard'], onChange: handleDifficultyChange },
@@ -587,6 +600,13 @@ function AppContent() {
             <TouchableOpacity style={styles.btnPrimary} onPress={restartQuiz}>
               <Text style={styles.btnText}>Practice Again</Text>
             </TouchableOpacity>
+          </View>
+        ) : !quizStarted ? (
+          <View style={styles.card}>
+            <Text style={styles.heading}>Ready to practise?</Text>
+            <Text style={styles.body}>Choose your category, difficulty and level above, then start when you are ready.</Text>
+            <Text style={styles.scoreText}>{filteredQuestions.length} questions available</Text>
+            <TouchableOpacity style={styles.btnPrimary} onPress={startQuiz}><Text style={styles.btnText}>Start Quiz</Text></TouchableOpacity>
           </View>
         ) : (
           <View style={styles.card}>
