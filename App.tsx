@@ -650,7 +650,8 @@ const styles = StyleSheet.create({
   modeToggleText: { fontSize: 12, fontWeight: '700' },
   modeTimedText: { color: '#B45309' },
   modeUntimedText: { color: '#0369A1' },
-  horizontalFilter: { width: '100%', maxWidth: 540, flexGrow: 0, height: 56 },\n  trackScroll: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 2, gap: 8 },
+  horizontalFilter: { width: '100%', maxWidth: 540, flexGrow: 0, height: 56 },
+  trackScroll: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 2, gap: 8 },
   filterGroup: { width: '100%', maxWidth: 540, marginBottom: 8 },
   filterLabel: { fontSize: 12, fontWeight: '700', color: '#64748B', marginTop: 4 },
   trackPill: {
