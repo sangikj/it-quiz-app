@@ -11,8 +11,8 @@ import {
   ScrollView,
   StatusBar,
   TextInput,
+  SafeAreaView,
 } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from './lib/supabase';
 
 interface AnswerRecord {
@@ -692,7 +692,7 @@ function AppContent() {
 }
 
 export default function App() {
-  return <SafeAreaProvider><AppContent /></SafeAreaProvider>;
+  return <AppContent />;
 }
 
 const styles = StyleSheet.create({
