@@ -571,10 +571,12 @@ function AppContent() {
 
         {/* Filters stay compact while answering; expand only when the user needs to change them. */}
         <View style={styles.filterPanel}>
-          {quizStarted ? <TouchableOpacity style={styles.filterSummaryButton} onPress={() => { setFiltersExpanded((value) => !value); setOpenFilter(null); }} accessibilityRole="button" accessibilityState={{ expanded: filtersExpanded }}>
-            <Text style={styles.filterSummaryText}>{selectedTrack === 'All' && selectedDifficulty === 'All' && selectedLevel === 'All' ? 'Filters (All)' : `Filters · ${selectedTrack === 'All' ? 'All topics' : selectedTrack} · ${selectedDifficulty} · ${selectedLevel}`}</Text>
-            <Text style={styles.dropdownChevron}>{filtersExpanded ? '▲' : '▼'}</Text>
-          </TouchableOpacity>
+          {quizStarted ? (
+            <TouchableOpacity style={styles.filterSummaryButton} onPress={() => { setFiltersExpanded((value) => !value); setOpenFilter(null); }} accessibilityRole="button" accessibilityState={{ expanded: filtersExpanded }}>
+              <Text style={styles.filterSummaryText}>{selectedTrack === 'All' && selectedDifficulty === 'All' && selectedLevel === 'All' ? 'Filters (All)' : `Filters · ${selectedTrack === 'All' ? 'All topics' : selectedTrack} · ${selectedDifficulty} · ${selectedLevel}`}</Text>
+              <Text style={styles.dropdownChevron}>{filtersExpanded ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+          ) : null}
           {!quizStarted || filtersExpanded ? <View style={styles.expandedFilters}>
             {[
               { key: 'category', label: 'Category', value: selectedTrack, options: tracks, onChange: handleTrackChange },
