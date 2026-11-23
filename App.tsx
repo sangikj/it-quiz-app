@@ -362,7 +362,7 @@ function AppContent() {
     if (selectedOption !== null || showExplanation || (isTimedMode && timeLeft === 0)) return;
     setSelectedOption(index);
     setShowExplanation(true);
-    const question = filteredQuestions[currentIndex];
+    const question = quizQuestions[currentIndex];
     setAnswers((previous) => previous.some((answer) => answer.question_id === question.id)
       ? previous
       : [...previous, {
@@ -619,6 +619,29 @@ function AppContent() {
             <Text style={styles.heading}>Ready to practise?</Text>
             <Text style={styles.body}>Choose your category, difficulty and level above, then start when you are ready.</Text>
             <Text style={styles.scoreText}>{filteredQuestions.length} questions available</Text>
+            <Text style={styles.filterLabel}>Number of questions</Text>
+            <View style={styles.questionCountRow}>
+              {[5, 10, 15, 20, 25, 'All'].map((count) => {
+                const isSelected = questionCount === count;
+                const label = count === 'All' ? 'All' : String(count);
+                const availableCount = count === 'All' ? filteredQuestions.length : Math.min(count as number, filteredQuestions.length);
+                return (
+                  <TouchableOpacity
+                    key={label}
+                    style={[styles.questionCountButton, isSelected && styles.questionCountButtonActive]}
+                    onPress={() => setQuestionCount(count as number | 'All')}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                  >
+                    <Text style={[styles.questionCountText, isSelected && styles.questionCountTextActive]}>{label}</Text>
+                    <Text style={[styles.questionCountSubtext, isSelected && styles.questionCountSubtextActive]}>{availableCount}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={styles.body}>
+              {questionCount === 'All' ? filteredQuestions.length : Math.min(questionCount, filteredQuestions.length)} questions will be included in this quiz.
+            </Text>
             <TouchableOpacity style={styles.btnPrimary} onPress={startQuiz}><Text style={styles.btnText}>Start Quiz</Text></TouchableOpacity>
           </View>
         ) : (
@@ -756,6 +779,8 @@ const styles = StyleSheet.create({
   questionCountButtonActive: { backgroundColor: '#312E81', borderColor: '#312E81' },
   questionCountText: { color: '#334155', fontSize: 14, fontWeight: '700' },
   questionCountTextActive: { color: '#FFFFFF' },
+  questionCountSubtext: { color: '#64748B', fontSize: 10, marginTop: 1, fontWeight: '600' },
+  questionCountSubtextActive: { color: '#E0E7FF' },
   filterSummaryButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 8 },
   filterSummaryText: { flex: 1, color: '#334155', fontSize: 13, fontWeight: '700' },
   expandedFilters: { gap: 8, paddingHorizontal: 6, paddingBottom: 4 },
