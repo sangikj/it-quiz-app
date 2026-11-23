@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   ScrollView,
   StatusBar,
+  Platform,
   TextInput,
   SafeAreaView,
 } from 'react-native';
@@ -602,10 +603,11 @@ function AppContent() {
         </View>
         {isCompleted || quizStatus === 'ended' ? (
           <View style={styles.card}>
-            <Text style={styles.heading}>{quizStatus === 'ended' ? 'Quiz Ended' : 'Track Completed! 🎉'}</Text>
+            <Text style={styles.heading}>{quizStatus === 'ended' ? 'Quiz Ended' : 'Quiz Completed! 🎉'}</Text>
             <Text style={styles.scoreText}>
-              Score ({selectedTrack}): {score} / {quizQuestions.length}
+              Score: {score} / {quizQuestions.length}
             </Text>
+            <Text style={styles.body}>Questions attempted: {answers.length} / {quizQuestions.length}</Text>
             {saveMessage ? <Text style={styles.saveMessage}>{saveMessage}</Text> : null}
             {isSavingAttempt ? <ActivityIndicator color="#4F46E5" /> : null}
             <TouchableOpacity style={styles.btnPrimary} onPress={restartQuiz}>
@@ -698,7 +700,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: '#F8FAFC' },
+  wrapper: { flex: 1, backgroundColor: '#F8FAFC', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight ?? 24) + 12 : 0 },
   container: { flexGrow: 1, paddingHorizontal: 16, paddingTop: 8, paddingBottom: 24, alignItems: 'center' },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   topBar: {
@@ -710,9 +712,9 @@ const styles = StyleSheet.create({
   },
   headerIdentity: {
     width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    alignItems: 'stretch',
     gap: 10,
   },
   appTitle: { fontSize: 20, fontWeight: '800', color: '#0F172A' },
@@ -773,7 +775,7 @@ const styles = StyleSheet.create({
   authStatusBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', marginTop: 5, gap: 6 },
   authStatusDot: { width: 7, height: 7, borderRadius: 4 },
   authStatusText: { color: '#475569', fontSize: 11, fontWeight: '700' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, width: '100%' },
   headerEndButton: { backgroundColor: '#FEE2E2', paddingHorizontal: 10, paddingVertical: 9, borderRadius: 9 },
   headerEndButtonText: { color: '#B91C1C', fontSize: 11, fontWeight: '800' },
   accountButton: { backgroundColor: '#EEF2FF', paddingHorizontal: 12, paddingVertical: 9, borderRadius: 9 },
