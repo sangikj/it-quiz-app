@@ -300,6 +300,11 @@ function AppContent() {
     setBookmarkBusy(false);
   }
 
+  useEffect(() => {
+    if (session?.user?.id) void loadBookmarks();
+    else { setBookmarkedIds(new Set()); setSavedQuestions([]); }
+  }, [session?.user?.id]);
+
   async function saveProfile() {
     if (!session?.user?.id) return;
     setProfileSaving(true); setProfileMessage(null);
