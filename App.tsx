@@ -132,6 +132,15 @@ function AppContent() {
   const [displayName, setDisplayName] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const [activePage, setActivePage] = useState<'quiz' | 'history' | 'bookmarks'>('quiz');
+  const [historyItems, setHistoryItems] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
+  const [savedQuestions, setSavedQuestions] = useState<Question[]>([]);
+  const [bookmarksLoading, setBookmarksLoading] = useState(false);
+  const [bookmarksError, setBookmarksError] = useState<string | null>(null);
+  const [bookmarkBusy, setBookmarkBusy] = useState(false);
   const savedAttemptRef = useRef(false);
 
   useEffect(() => {
@@ -247,6 +256,49 @@ function AppContent() {
     void loadProfile();
     return () => { active = false; };
   }, [session?.user?.id]);
+
+  async function loadHistory() {
+    if (!session?.user?.id) { setHistoryItems([]); return; }
+    setHistoryLoading(true); setHistoryError(null);
+    const { data, error } = await supabase.from('quiz_attempts').select('id, track, difficulty, level, mode, total_questions, correct_answers, score_percentage, duration_seconds, status, created_at').eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(50);
+    if (error) setHistoryError(error.message); else setHistoryItems(data ?? []);
+    setHistoryLoading(false);
+  }
+
+  async function loadBookmarks() {
+    if (!session?.user?.id) { setSavedQuestions([]); setBookmarkedIds(new Set()); return; }
+    setBookmarksLoading(true); setBookmarksError(null);
+    const { data: rows, error } = await supabase.from('bookmarks').select('question_id').eq('user_id', session.user.id).order('created_at', { ascending: false });
+    if (error) { setBookmarksError(error.message); setBookmarksLoading(false); return; }
+    const ids = (rows ?? []).map((row: { question_id: string }) => row.question_id);
+    setBookmarkedIds(new Set(ids));
+    if (ids.length === 0) { setSavedQuestions([]); setBookmarksLoading(false); return; }
+    const { data: questions, error: questionsError } = await supabase.from('questions').select('id, track, question_text, options, correct_index, explanation, difficulty, level').in('id', ids);
+    if (questionsError) setBookmarksError(questionsError.message);
+    else {
+      const parsed = parseQuestions(questions ?? []);
+      const order = new Map(ids.map((id, index) => [id, index]));
+      parsed.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+      setSavedQuestions(parsed);
+    }
+    setBookmarksLoading(false);
+  }
+
+  async function toggleBookmark(question: Question) {
+    if (!session?.user?.id) { Alert.alert('Sign in required', 'Sign in with Google to save and revisit bookmarked questions.'); return; }
+    if (bookmarkBusy) return;
+    setBookmarkBusy(true);
+    if (bookmarkedIds.has(question.id)) {
+      const { error } = await supabase.from('bookmarks').delete().eq('user_id', session.user.id).eq('question_id', question.id);
+      if (error) Alert.alert('Could not remove bookmark', error.message);
+      else { setBookmarkedIds((previous) => { const next = new Set(previous); next.delete(question.id); return next; }); setSavedQuestions((previous) => previous.filter((item) => item.id !== question.id)); }
+    } else {
+      const { error } = await supabase.from('bookmarks').insert({ user_id: session.user.id, question_id: question.id });
+      if (error) Alert.alert('Could not save bookmark', error.message);
+      else setBookmarkedIds((previous) => new Set(previous).add(question.id));
+    }
+    setBookmarkBusy(false);
+  }
 
   async function saveProfile() {
     if (!session?.user?.id) return;
@@ -526,6 +578,35 @@ function AppContent() {
     );
   }
 
+  if (activePage === 'history') {
+    return <SafeAreaView style={styles.wrapper}><StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" translucent={false} /><ScrollView contentContainerStyle={styles.container}><View style={styles.card}>
+      <TouchableOpacity style={styles.backButton} onPress={() => setActivePage('quiz')}><Text style={styles.backButtonText}>‹  Back to quiz</Text></TouchableOpacity>
+      <Text style={styles.heading}>Quiz History</Text>
+      {!session ? <Text style={styles.body}>Sign in with Google to view saved quiz attempts.</Text> : historyLoading ? <ActivityIndicator color="#4F46E5" /> : historyError ? <Text style={styles.authError}>{historyError}</Text> : historyItems.length === 0 ? <Text style={styles.body}>No quiz attempts yet. Complete a quiz to see it here.</Text> : historyItems.map((item) => <View key={item.id} style={styles.historyCard}>
+        <Text style={styles.historyTitle}>{item.track || 'All topics'} · {item.mode === 'timed' ? 'Timed' : 'Practice'}</Text>
+        <Text style={styles.historyScore}>{item.correct_answers} / {item.total_questions} correct · {Number(item.score_percentage || 0).toFixed(0)}%</Text>
+        <Text style={styles.historyMeta}>{new Date(item.created_at).toLocaleString()} · {item.status === 'completed' ? 'Completed' : item.status === 'ended' ? 'Ended early' : 'Timed out'}</Text>
+        <Text style={styles.historyMeta}>{item.difficulty || 'All difficulties'} · {item.level || 'All levels'} · {item.duration_seconds || 0}s</Text>
+      </View>)}
+      <TouchableOpacity style={styles.btnPrimary} onPress={loadHistory}><Text style={styles.btnText}>Refresh history</Text></TouchableOpacity>
+    </View></ScrollView></SafeAreaView>;
+  }
+
+  if (activePage === 'bookmarks') {
+    return <SafeAreaView style={styles.wrapper}><StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" translucent={false} /><ScrollView contentContainerStyle={styles.container}><View style={styles.card}>
+      <TouchableOpacity style={styles.backButton} onPress={() => setActivePage('quiz')}><Text style={styles.backButtonText}>‹  Back to quiz</Text></TouchableOpacity>
+      <Text style={styles.heading}>Saved Questions</Text>
+      {!session ? <Text style={styles.body}>Sign in with Google to save and revisit questions.</Text> : bookmarksLoading ? <ActivityIndicator color="#4F46E5" /> : bookmarksError ? <Text style={styles.authError}>{bookmarksError}</Text> : savedQuestions.length === 0 ? <Text style={styles.body}>No saved questions yet. Tap Save question while practising.</Text> : savedQuestions.map((question) => <View key={question.id} style={styles.historyCard}>
+        <Text style={styles.historyTitle}>{question.track} · {question.difficulty} · {question.level}</Text>
+        <Text style={styles.questionText}>{question.question_text}</Text>
+        {question.options.map((option, index) => <Text key={index} style={styles.savedOption}>{String.fromCharCode(65 + index)}. {option}{index === question.correct_index ? '  ✓ Correct answer' : ''}</Text>)}
+        {question.explanation ? <Text style={styles.historyMeta}>Explanation: {question.explanation}</Text> : null}
+        <TouchableOpacity style={styles.removeBookmarkButton} onPress={() => void toggleBookmark(question)}><Text style={styles.removeBookmarkText}>Remove bookmark</Text></TouchableOpacity>
+      </View>)}
+      <TouchableOpacity style={styles.btnPrimary} onPress={loadBookmarks}><Text style={styles.btnText}>Refresh saved questions</Text></TouchableOpacity>
+    </View></ScrollView></SafeAreaView>;
+  }
+
   if (allQuestions.length === 0) {
     return (
       <View style={styles.center}>
@@ -555,6 +636,8 @@ function AppContent() {
             </View>
             <View style={styles.headerActions}>
               {quizStarted && !isCompleted && !quizStatus ? <TouchableOpacity style={styles.headerEndButton} onPress={endQuiz} accessibilityRole="button"><Text style={styles.headerEndButtonText}>End Quiz</Text></TouchableOpacity> : null}
+              <TouchableOpacity style={styles.accountButton} onPress={() => { setActivePage('history'); void loadHistory(); }}><Text style={styles.accountButtonText}>History</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.accountButton} onPress={() => { setActivePage('bookmarks'); void loadBookmarks(); }}><Text style={styles.accountButtonText}>Saved</Text></TouchableOpacity>
               <TouchableOpacity style={styles.accountButton} onPress={() => setShowAccount(true)}><Text style={styles.accountButtonText}>Account</Text></TouchableOpacity>
             </View>
           </View>
@@ -666,7 +749,7 @@ function AppContent() {
               <Text style={styles.timeoutBanner}>Time's up! Review the correct answer below:</Text>
             )}
 
-            <Text style={styles.questionText}>{currentQ.question_text}</Text>
+            <View style={styles.questionHeader}><Text style={styles.questionText}>{currentQ.question_text}</Text><TouchableOpacity style={styles.bookmarkButton} onPress={() => void toggleBookmark(currentQ)} disabled={bookmarkBusy}><Text style={styles.bookmarkButtonText}>{bookmarkedIds.has(currentQ.id) ? '★ Saved' : '☆ Save question'}</Text></TouchableOpacity></View>
 
             {currentQ.options.map((option, idx) => {
               let optionStyle: any = styles.optionCard;
@@ -748,6 +831,16 @@ const styles = StyleSheet.create({
   endQuizButton: { alignSelf: 'flex-end', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#FEE2E2', borderRadius: 10, marginBottom: 8 },
   endQuizText: { color: '#B91C1C', fontSize: 13, fontWeight: '700' },
   saveMessage: { color: '#475569', textAlign: 'center', marginVertical: 10, fontSize: 12 },
+  historyCard: { width: '100%', backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 14, marginTop: 12 },
+  historyTitle: { color: '#1E293B', fontSize: 14, fontWeight: '800', marginBottom: 6 },
+  historyScore: { color: '#4338CA', fontSize: 15, fontWeight: '800', marginBottom: 5 },
+  historyMeta: { color: '#64748B', fontSize: 12, lineHeight: 18, marginTop: 3 },
+  savedOption: { color: '#334155', fontSize: 13, lineHeight: 20, marginTop: 5 },
+  questionHeader: { width: '100%' },
+  bookmarkButton: { alignSelf: 'flex-start', backgroundColor: '#EEF2FF', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, marginBottom: 12 },
+  bookmarkButtonText: { color: '#4338CA', fontSize: 12, fontWeight: '800' },
+  removeBookmarkButton: { alignSelf: 'flex-start', marginTop: 12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: '#FEE2E2' },
+  removeBookmarkText: { color: '#B91C1C', fontSize: 12, fontWeight: '700' },
   authContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 28, width: '100%' },
   authTitle: { fontSize: 28, fontWeight: '800', color: '#0F172A', marginBottom: 8 },
   authSubtitle: { fontSize: 15, color: '#64748B', marginBottom: 32, textAlign: 'center' },
