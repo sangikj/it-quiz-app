@@ -277,7 +277,7 @@ function AppContent() {
     if (questionsError) setBookmarksError(questionsError.message);
     else {
       const parsed = parseQuestions(questions ?? []);
-      const order = new Map(ids.map((id, index) => [id, index]));
+      const order = new Map<string, number>(ids.map((id, index) => [id, index] as [string, number]));
       parsed.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
       setSavedQuestions(parsed);
     }
