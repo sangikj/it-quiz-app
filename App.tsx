@@ -132,6 +132,10 @@ function AppContent() {
   const [displayName, setDisplayName] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const [feedbackRating, setFeedbackRating] = useState(0);
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackSaving, setFeedbackSaving] = useState(false);
+  const [feedbackStatus, setFeedbackStatus] = useState<string | null>(null);
   const [activePage, setActivePage] = useState<'quiz' | 'history' | 'bookmarks'>('quiz');
   const [historyItems, setHistoryItems] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -311,6 +315,30 @@ function AppContent() {
     const { error } = await supabase.from('profiles').upsert({ id: session.user.id, display_name: displayName.trim(), updated_at: new Date().toISOString() });
     setProfileSaving(false);
     setProfileMessage(error ? 'Could not update your profile: ' + error.message : 'Profile updated.');
+  }
+
+  async function submitFeedback() {
+    if (!session?.user?.id) {
+      Alert.alert('Sign in required', 'Sign in with Google to send feedback.');
+      return;
+    }
+    if (feedbackRating < 1 || feedbackRating > 5) {
+      setFeedbackStatus('Please select a rating from 1 to 5.');
+      return;
+    }
+    setFeedbackSaving(true);
+    setFeedbackStatus(null);
+    const { error } = await supabase.from('app_feedback').insert({
+      user_id: session.user.id,
+      rating: feedbackRating,
+      message: feedbackMessage.trim() || null,
+    });
+    setFeedbackSaving(false);
+    setFeedbackStatus(error ? 'Could not send feedback: ' + error.message : 'Thank you! Your feedback was submitted.');
+    if (!error) {
+      setFeedbackRating(0);
+      setFeedbackMessage('');
+    }
   }
 
   // Derive unique categories dynamically from Supabase rows
@@ -576,6 +604,22 @@ function AppContent() {
             {session?.user?.created_at ? <><Text style={styles.filterLabel}>Account created</Text><Text style={styles.accountDetailValue}>{new Date(session.user.created_at).toLocaleDateString()}</Text></> : null}
             {profileMessage ? <Text style={styles.saveMessage}>{profileMessage}</Text> : null}
             {session ? <TouchableOpacity style={styles.btnPrimary} onPress={saveProfile} disabled={profileSaving}>{profileSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.btnText}>Save profile</Text>}</TouchableOpacity> : <TouchableOpacity style={styles.btnPrimary} onPress={() => { setShowAccount(false); void signInWithGoogle(); }}><Text style={styles.btnText}>Sign in with Google to save progress</Text></TouchableOpacity>}
+            <View style={styles.historyCard}>
+              <Text style={styles.historyTitle}>Rate Sangarya IT Quiz</Text>
+              <Text style={styles.historyMeta}>How useful has the app been?</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginVertical: 10 }}>
+                {[1, 2, 3, 4, 5].map((rating) => (
+                  <TouchableOpacity key={rating} onPress={() => setFeedbackRating(rating)} accessibilityRole="button" accessibilityLabel={rating + ' star rating'}>
+                    <Text style={{ fontSize: 28, color: rating <= feedbackRating ? '#F59E0B' : '#CBD5E1' }}>★</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TextInput value={feedbackMessage} onChangeText={setFeedbackMessage} placeholder="Optional feedback (up to 2000 characters)" multiline maxLength={2000} style={[styles.profileInput, { minHeight: 90, textAlignVertical: 'top' }]} />
+              {feedbackStatus ? <Text style={styles.saveMessage}>{feedbackStatus}</Text> : null}
+              <TouchableOpacity style={styles.btnPrimary} onPress={submitFeedback} disabled={feedbackSaving || !session}>
+                {feedbackSaving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.btnText}>Submit feedback</Text>}
+              </TouchableOpacity>
+            </View>
             {session ? <TouchableOpacity style={styles.signOutButton} onPress={signOut}><Text style={styles.signOutText}>Sign out</Text></TouchableOpacity> : null}
           </View>
         </ScrollView>
