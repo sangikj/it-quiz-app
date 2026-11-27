@@ -136,8 +136,11 @@ function AppContent() {
   const [feedbackMessage, setFeedbackMessage] = useState('');
   const [feedbackSaving, setFeedbackSaving] = useState(false);
   const [feedbackStatus, setFeedbackStatus] = useState<string | null>(null);
-  const [activePage, setActivePage] = useState<'quiz' | 'history' | 'bookmarks'>('quiz');
+  const [activePage, setActivePage] = useState<'quiz' | 'history' | 'bookmarks' | 'leaderboard'>('quiz');
   const [historyItems, setHistoryItems] = useState<any[]>([]);
+  const [leaderboardItems, setLeaderboardItems] = useState<any[]>([]);
+  const [leaderboardLoading, setLeaderboardLoading] = useState(false);
+  const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
@@ -267,6 +270,15 @@ function AppContent() {
     const { data, error } = await supabase.from('quiz_attempts').select('id, track, difficulty, level, mode, total_questions, correct_answers, score_percentage, duration_seconds, status, created_at').eq('user_id', session.user.id).order('created_at', { ascending: false }).limit(50);
     if (error) setHistoryError(error.message); else setHistoryItems(data ?? []);
     setHistoryLoading(false);
+  }
+
+  async function loadLeaderboard() {
+    setLeaderboardLoading(true);
+    setLeaderboardError(null);
+    const { data, error } = await supabase.rpc('get_quiz_leaderboard', { limit_count: 20 });
+    if (error) setLeaderboardError(error.message);
+    else setLeaderboardItems(data ?? []);
+    setLeaderboardLoading(false);
   }
 
   async function loadBookmarks() {
@@ -641,6 +653,20 @@ function AppContent() {
     </View></ScrollView></SafeAreaView>;
   }
 
+  if (activePage === 'leaderboard') {
+    return <SafeAreaView style={styles.wrapper}><StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" translucent={false} /><ScrollView contentContainerStyle={styles.container}><View style={styles.card}>
+      <TouchableOpacity style={styles.backButton} onPress={() => setActivePage('quiz')}><Text style={styles.backButtonText}>‹  Back to quiz</Text></TouchableOpacity>
+      <Text style={styles.heading}>Leaderboard</Text>
+      <Text style={styles.body}>Rankings include completed quizzes from users who opted in. Guest attempts and early-ended quizzes are excluded.</Text>
+      {leaderboardLoading ? <ActivityIndicator color="#4F46E5" /> : leaderboardError ? <Text style={styles.authError}>{leaderboardError}</Text> : leaderboardItems.length === 0 ? <Text style={styles.body}>No leaderboard entries yet. Opt in from Account after completing a quiz.</Text> : leaderboardItems.map((item, index) => <View key={String(item.user_id || index)} style={styles.historyCard}>
+        <Text style={styles.historyTitle}>#{item.rank} · {item.display_name || 'Quiz learner'}</Text>
+        <Text style={styles.historyScore}>{Number(item.average_score || 0).toFixed(1)}% average score</Text>
+        <Text style={styles.historyMeta}>{item.completed_quizzes} completed quizzes</Text>
+      </View>)}
+      <TouchableOpacity style={styles.btnPrimary} onPress={loadLeaderboard}><Text style={styles.btnText}>Refresh leaderboard</Text></TouchableOpacity>
+    </View></ScrollView></SafeAreaView>;
+  }
+
   if (activePage === 'bookmarks') {
     return <SafeAreaView style={styles.wrapper}><StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" translucent={false} /><ScrollView contentContainerStyle={styles.container}><View style={styles.card}>
       <TouchableOpacity style={styles.backButton} onPress={() => setActivePage('quiz')}><Text style={styles.backButtonText}>‹  Back to quiz</Text></TouchableOpacity>
@@ -687,6 +713,7 @@ function AppContent() {
               {quizStarted && !isCompleted && !quizStatus ? <TouchableOpacity style={styles.headerEndButton} onPress={endQuiz} accessibilityRole="button"><Text style={styles.headerEndButtonText}>End Quiz</Text></TouchableOpacity> : null}
               <TouchableOpacity style={styles.accountButton} onPress={() => { setActivePage('history'); void loadHistory(); }}><Text style={styles.accountButtonText}>History</Text></TouchableOpacity>
               <TouchableOpacity style={styles.accountButton} onPress={() => { setActivePage('bookmarks'); void loadBookmarks(); }}><Text style={styles.accountButtonText}>Saved</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.accountButton} onPress={() => { setActivePage('leaderboard'); void loadLeaderboard(); }}><Text style={styles.accountButtonText}>Leaderboard</Text></TouchableOpacity>
               <TouchableOpacity style={styles.accountButton} onPress={() => setShowAccount(true)}><Text style={styles.accountButtonText}>Account</Text></TouchableOpacity>
             </View>
           </View>
