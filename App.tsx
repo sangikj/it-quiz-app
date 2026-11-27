@@ -130,6 +130,7 @@ function AppContent() {
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [showAccount, setShowAccount] = useState(false);
   const [displayName, setDisplayName] = useState('');
+  const [leaderboardOptIn, setLeaderboardOptIn] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [feedbackRating, setFeedbackRating] = useState(0);
@@ -257,8 +258,8 @@ function AppContent() {
     let active = true;
     async function loadProfile() {
       if (!session?.user?.id) { setDisplayName(''); return; }
-      const { data } = await supabase.from('profiles').select('display_name').eq('id', session.user.id).maybeSingle();
-      if (active) setDisplayName(data?.display_name || session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || '');
+      const { data } = await supabase.from('profiles').select('display_name, leaderboard_opt_in').eq('id', session.user.id).maybeSingle();
+      if (active) { setDisplayName(data?.display_name || session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || ''); setLeaderboardOptIn(Boolean(data?.leaderboard_opt_in)); }
     }
     void loadProfile();
     return () => { active = false; };
@@ -324,7 +325,7 @@ function AppContent() {
   async function saveProfile() {
     if (!session?.user?.id) return;
     setProfileSaving(true); setProfileMessage(null);
-    const { error } = await supabase.from('profiles').upsert({ id: session.user.id, display_name: displayName.trim(), updated_at: new Date().toISOString() });
+    const { error } = await supabase.from('profiles').upsert({ id: session.user.id, display_name: displayName.trim(), leaderboard_opt_in: leaderboardOptIn, updated_at: new Date().toISOString() });
     setProfileSaving(false);
     setProfileMessage(error ? 'Could not update your profile: ' + error.message : 'Profile updated.');
   }
@@ -609,6 +610,13 @@ function AppContent() {
             <View style={[styles.authStatusBadge, { alignSelf: 'center', marginBottom: 18 }]}><View style={[styles.authStatusDot, { backgroundColor: session ? '#16A34A' : '#D97706' }]} /><Text style={styles.authStatusText}>{session ? 'Signed in with Google' : 'Guest mode'}</Text></View>
             <Text style={styles.filterLabel}>Display name</Text>
             <TextInput value={displayName} onChangeText={setDisplayName} placeholder="Enter your name" style={styles.profileInput} editable={!!session} />
+            <TouchableOpacity onPress={() => setLeaderboardOptIn((value) => !value)} style={[styles.guestButton, { maxWidth: '100%', flexDirection: 'row', justifyContent: 'flex-start', gap: 10, marginTop: 4 }]} accessibilityRole="checkbox" accessibilityState={{ checked: leaderboardOptIn }}>
+              <Text style={{ fontSize: 18, color: leaderboardOptIn ? '#4F46E5' : '#94A3B8' }}>{leaderboardOptIn ? '☑' : '□'}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.historyTitle}>Show me on the leaderboard</Text>
+                <Text style={styles.historyMeta}>Share your display name and average completed-quiz score. You can opt out anytime.</Text>
+              </View>
+            </TouchableOpacity>
             <Text style={styles.filterLabel}>Email address</Text>
             <Text style={styles.accountDetailValue}>{session?.user?.email || 'Not linked to an account'}</Text>
             <Text style={styles.filterLabel}>Sign-in method</Text>
